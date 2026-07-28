@@ -31,6 +31,9 @@ First public release.
   the task id, `--epic` scopes it to one area, and `--owner` hides work claimed by
   others. Tasks carry an `owner` field, set by `tasc new --owner` or
   `tasc mark <id> in_progress --owner`; claiming a task someone else owns fails.
+  `TASC_OWNER`, `TASC_EPIC` and `TASC_SHARD` set a lane once instead of repeating
+  flags; `tasc next` names the filters it applied, and `tasc list` ignores them so
+  one command always shows the whole backlog.
 - `--json` on every read command, so AI coding agents consume a stable contract
   rather than scraped console output. Human-facing errors go to stderr to keep
   stdout parseable. Paths are emitted with forward slashes on every platform.

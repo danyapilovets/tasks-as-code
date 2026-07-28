@@ -167,7 +167,19 @@ tasc mark api-004 in_progress --owner agent-a   # claim it
 tasc list --owner none                          # what nobody has taken
 ```
 
-Claiming a task somebody else owns fails rather than silently stealing it. For
+Claiming a task somebody else owns fails rather than silently stealing it.
+
+The same split works for people. Since open tasks are one file per epic, teams on
+different epics touch different files and git has nothing to merge. Each person
+declares a lane once instead of repeating flags:
+
+```sh
+export TASC_OWNER=olena
+export TASC_EPIC=bi        # also TASC_SHARD, for agents
+```
+
+An explicit flag wins over the environment, `tasc next` prints which filters it
+applied, and `tasc list` ignores them so one command always shows everything. For
 why this stops at git and does not become a server, see
 [`docs/parallel-agents.md`](docs/parallel-agents.md).
 

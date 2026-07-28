@@ -178,11 +178,20 @@ def cmd_init(
 def cmd_next(
     limit: int = typer.Option(1, "--limit", "-n", help="How many tasks to suggest."),
     owner: str | None = typer.Option(
-        None, "--owner", "-o", help="Only unowned tasks and your own. Also filters in-progress."
+        None,
+        "--owner",
+        "-o",
+        envvar="TASC_OWNER",
+        help="Only unowned tasks and your own. Also filters in-progress.",
     ),
-    epic: str | None = typer.Option(None, "--epic", "-e", help="Only tasks from this epic."),
+    epic: str | None = typer.Option(
+        None, "--epic", "-e", envvar="TASC_EPIC", help="Only tasks from this epic."
+    ),
     shard: str | None = typer.Option(
-        None, "--shard", help="Take a disjoint slice of the backlog, e.g. '2/3'."
+        None,
+        "--shard",
+        envvar="TASC_SHARD",
+        help="Take a disjoint slice of the backlog, e.g. '2/3'.",
     ),
     as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:
@@ -194,6 +203,11 @@ def cmd_next(
     Selection is deterministic, so parallel agents asking at the same moment all
     receive the same task. Use ``--owner``, ``--epic`` or ``--shard`` to give each
     agent its own slice; ``--shard`` needs no coordination between them.
+
+    All three read TASC_OWNER, TASC_EPIC and TASC_SHARD, so a person or an agent
+    sets its lane once in the environment instead of on every invocation. Active
+    filters are named in the output. ``tasc list`` deliberately ignores them, so
+    there is always one command that shows the whole backlog.
     """
     paths = _paths(as_json)
     refs = _load(paths, as_json)
@@ -215,6 +229,17 @@ def cmd_next(
             }
         )
         return
+
+    # Filters can come from TASC_EPIC, TASC_OWNER or TASC_SHARD in the shell
+    # profile. Say which are active, so an exported variable someone set weeks ago
+    # cannot quietly hide the backlog and look like an empty one.
+    active = [
+        f"{label}={value}"
+        for label, value in (("epic", epic), ("owner", owner), ("shard", shard))
+        if value
+    ]
+    if active:
+        console.print(f"[dim]Filtered by {', '.join(active)}[/dim]\n")
 
     if in_progress:
         console.print("[yellow]Already in progress:[/yellow]")
@@ -372,7 +397,11 @@ def cmd_mark(
     task_id: str,
     status: str = typer.Argument(..., help="todo | in_progress | blocked"),
     owner: str | None = typer.Option(
-        None, "--owner", "-o", help="Claim the task for this owner in the same write."
+        None,
+        "--owner",
+        "-o",
+        envvar="TASC_OWNER",
+        help="Claim the task for this owner in the same write.",
     ),
     as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:

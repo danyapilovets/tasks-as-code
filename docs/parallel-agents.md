@@ -37,6 +37,33 @@ tasc next --epic ui     # frontend agent
 Use this when agents are specialised, or when you want work on one area confined
 to one branch. Unlike shards, the split is yours to keep balanced.
 
+This is also the split that works for people rather than agents. Because open
+tasks are grouped one file per epic, teams working different epics touch
+different files, so git has nothing to merge and no conflict to report. Three
+specialities on one backlog:
+
+```text
+tasks/active/be.yaml       backend
+tasks/active/mlops.yaml    MLOps
+tasks/active/bi.yaml       BI
+```
+
+## Setting a lane once
+
+Typing the same flags all day is how a convention gets abandoned. `tasc next`
+reads its filters from the environment, so each person or agent declares its lane
+once, in a shell profile or a container spec:
+
+```sh
+export TASC_OWNER=olena
+export TASC_EPIC=bi
+```
+
+An explicit flag always beats the environment, and `tasc next` names the filters
+it applied — a variable exported weeks ago must not make a full backlog look like
+an empty one. `tasc list` ignores the environment on purpose, so there is always
+one command that shows the whole picture regardless of who is asking.
+
 ## Owners: explicit claims
 
 ```sh
