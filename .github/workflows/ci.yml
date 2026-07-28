@@ -47,7 +47,18 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - run: pip install -e ".[dev]"
-      - run: pytest
+      - name: Run tests
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! pytest -q --tb=short 2>&1 | tee pytest.log; then
+            # Failures become annotations, which show up on the pull request diff
+            # and are readable without downloading the whole log.
+            grep -E '^(FAILED|ERROR|E   )' pytest.log | head -30 | while IFS= read -r line; do
+              printf '::error::%s\n' "${line//$'\r'/}"
+            done
+            exit 1
+          fi
 
   self-check:
     # The tool must be able to bootstrap and validate a project end to end.
