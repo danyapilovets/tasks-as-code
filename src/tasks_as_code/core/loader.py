@@ -45,7 +45,7 @@ class TaskRef:
 
 def _read_yaml(path: Path) -> dict:
     try:
-        data = yaml.safe_load(path.read_text())
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
     except yaml.YAMLError as exc:
         raise TaskFileError(f"{path}: invalid YAML: {exc}") from exc
     if data is None:
@@ -119,16 +119,28 @@ def write_active_file(path: Path, epic: str, description: str, tasks: list[Task]
         "tasks": [_clean_task_payload(task) for task in tasks],
     }
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True, width=120))
+    _dump_yaml(path, data)
 
 
 def write_archive_task(paths: Paths, task: Task, epic: str) -> Path:
     """Write one closed task to ``tasks/archive/<id>.yaml``."""
     paths.archive.mkdir(parents=True, exist_ok=True)
     path = paths.archive / f"{task.id}.yaml"
-    data = {"epic": epic, "task": _clean_task_payload(task)}
-    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True, width=120))
+    _dump_yaml(path, {"epic": epic, "task": _clean_task_payload(task)})
     return path
+
+
+def _dump_yaml(path: Path, data: dict) -> None:
+    """Write YAML as UTF-8, keeping non-latin text readable.
+
+    ``allow_unicode`` keeps Ukrainian or Polish summaries as themselves rather
+    than escapes, and the explicit encoding is what makes that writable on
+    Windows, whose default is cp1252.
+    """
+    path.write_text(
+        yaml.safe_dump(data, sort_keys=False, allow_unicode=True, width=120),
+        encoding="utf-8",
+    )
 
 
 def rewrite_epic_file(path: Path, fallback_epic: str, tasks: list[Task]) -> None:

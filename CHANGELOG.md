@@ -34,6 +34,11 @@ First public release.
 - `--json` on every read command, so AI coding agents consume a stable contract
   rather than scraped console output. Human-facing errors go to stderr to keep
   stdout parseable. Paths are emitted with forward slashes on every platform.
+- Every file is read and written as UTF-8 explicitly, so task text in Ukrainian,
+  Polish or any other non-latin script survives a round trip on Windows, whose
+  default encoding is cp1252.
+- Error output is not word-wrapped, so a file path inside a message stays on one
+  line and can be copied.
 - Configuration via `.tasc.yaml`: project name, tasks directory, done-log
   directory, stale threshold, and Jira label prefix and status map. `done_dir`
   lets an existing repository adopt the tool without moving its release notes.

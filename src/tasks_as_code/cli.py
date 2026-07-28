@@ -41,7 +41,10 @@ app = typer.Typer(
     help="Tasks as code: a git-native backlog for AI coding agents and humans.",
 )
 console = Console()
-err_console = Console(stderr=True)
+# Errors quote file paths and task ids. Rich's word wrap folds a long path across
+# lines, inserting a break inside the token, which makes it uncopyable — so let
+# the terminal wrap error output instead of rewriting it.
+err_console = Console(stderr=True, soft_wrap=True)
 
 STATUS_COLOURS = {
     "in_progress": "yellow",

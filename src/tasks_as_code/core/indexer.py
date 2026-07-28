@@ -92,5 +92,5 @@ def render_index(paths: Paths, refs: list[TaskRef], today: date | None = None) -
 
 def write_index(paths: Paths, refs: list[TaskRef]) -> Path:
     paths.index_md.parent.mkdir(parents=True, exist_ok=True)
-    paths.index_md.write_text(render_index(paths, refs))
+    paths.index_md.write_text(render_index(paths, refs), encoding="utf-8")
     return paths.index_md

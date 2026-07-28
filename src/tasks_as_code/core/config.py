@@ -50,7 +50,7 @@ class Config(BaseModel):
         """Read a config file, or return defaults when it does not exist."""
         if not path.is_file():
             return cls()
-        raw = yaml.safe_load(path.read_text()) or {}
+        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         if not isinstance(raw, dict):
             raise ValueError(f"{path} must contain a YAML mapping")
         return cls.model_validate(raw)
@@ -62,5 +62,6 @@ class Config(BaseModel):
                 sort_keys=False,
                 allow_unicode=True,
                 width=100,
-            )
+            ),
+            encoding="utf-8",
         )

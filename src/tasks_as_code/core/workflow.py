@@ -194,11 +194,13 @@ def _append_done_log(paths: Paths, ref: TaskRef, note: str | None) -> Path:
     paths.done.mkdir(parents=True, exist_ok=True)
     log_path = paths.done / f"{label}.md"
     if not log_path.exists():
-        log_path.write_text(f"# Done — {label}\n")
+        log_path.write_text(f"# Done — {label}\n", encoding="utf-8")
     entry = [f"\n## {ref.task.id} — {ref.task.summary}\n"]
     if note and note.strip():
         entry.append(f"\n{note.strip()}\n")
-    with log_path.open("a") as handle:
+    # Explicit UTF-8: the platform default is cp1252 on Windows, which cannot
+    # encode a summary written in Ukrainian, Polish or anything else non-latin1.
+    with log_path.open("a", encoding="utf-8") as handle:
         handle.writelines(entry)
     return log_path
 
