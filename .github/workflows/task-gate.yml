@@ -1,0 +1,100 @@
+name: Task gate
+
+# Reusable: a repository enforces the rule without copying a script.
+#
+#   # .github/workflows/tasks.yml
+#   name: Tasks
+#   on: [pull_request]
+#   jobs:
+#     gate:
+#       uses: danyapilovets/tasks-as-code/.github/workflows/task-gate.yml@v1.0.0
+#
+# Make it a required status check in branch protection. Local hooks are the fast
+# feedback but are per-clone and skippable with --no-verify; this is the part
+# nobody can bypass.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version of tasks-as-code to install, e.g. v1.0.0 or main.
+        type: string
+        # Matches the tag this file ships in, so a gate does not change behaviour
+        # under a repository that pinned it. Bump with each release.
+        default: v1.0.0
+      python-version:
+        type: string
+        default: "3.12"
+      require-status:
+        description: Demand the referenced task be in this status, e.g. in_progress.
+        type: string
+        default: ""
+      check-commits:
+        description: Also require a reference in every commit, not just the title.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The base branch is needed to list only this pull request's commits.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install tasks-as-code
+        run: pip install "git+https://github.com/danyapilovets/tasks-as-code@${{ inputs.version }}"
+
+      - name: Task files are valid
+        run: tasc validate
+
+      - name: Pull request title references a real task
+        if: github.event_name == 'pull_request'
+        env:
+          # Through the environment, never inline: a title is attacker-controlled
+          # text, and interpolating it into the script would run it.
+          TITLE: ${{ github.event.pull_request.title }}
+          REQUIRE: ${{ inputs.require-status }}
+        run: |
+          set -euo pipefail
+          if [ -n "$REQUIRE" ]; then
+            tasc check-ref --require-status "$REQUIRE" "$TITLE"
+          else
+            tasc check-ref "$TITLE"
+          fi
+
+      - name: Every commit references a real task
+        if: inputs.check-commits && github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          REQUIRE: ${{ inputs.require-status }}
+        run: |
+          set -euo pipefail
+          # Includes the subcommand so the array is never empty: expanding an
+          # empty one under 'set -u' is an error on bash 3.
+          args=(check-ref)
+          [ -n "$REQUIRE" ] && args+=(--require-status "$REQUIRE")
+          failed=0
+          # Read the shas on fd 3: on stdin, tasc would consume the list itself.
+          # The message goes in as an argument for the same reason.
+          while IFS= read -r sha <&3; do
+            if ! tasc "${args[@]}" "$(git log -1 --format=%B "$sha")"; then
+              printf '::error::commit %s does not reference an open task\n' "${sha:0:8}"
+              failed=1
+            fi
+          done 3< <(git log --format=%H "$BASE..$HEAD")
+          exit $failed
+
+      - name: Report tasks left in progress too long
+        # Informational: a stale task is a signal, not a reason to block a merge.
+        continue-on-error: true
+        run: tasc stale

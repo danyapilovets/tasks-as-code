@@ -84,7 +84,8 @@ jobs:
           tasc new api --summary "Ship the thing" --priority High
           tasc next --json
           tasc mark api-001 in_progress --owner ci-agent
-          tasc done api-001 --note "done in CI"
+          # Quoted so shellcheck reads it as the subcommand, not a loop keyword.
+          tasc "done" api-001 --note "done in CI"
           tasc validate
           tasc stale
           test -f tasks/INDEX.md
@@ -107,8 +108,31 @@ jobs:
           mkdir -p /tmp/legacy && cd /tmp/legacy
           tasc init --name "Legacy" --done-dir docs/changelog
           tasc new api --summary "Adopt tasc" >/dev/null
-          tasc done api-001 --note "adopted"
+          tasc "done" api-001 --note "adopted"
           ls docs/changelog/*.md
+
+      - name: The commit-msg hook blocks a real commit
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate && cd /tmp/gate
+          git init -q .
+          git config user.email ci@example.com
+          git config user.name CI
+          tasc init --name "Gate"
+          tasc install-hook
+          echo change > file.txt
+          git add -A
+
+          # No task named: the commit must not happen.
+          if git commit -q -m "wip"; then
+            echo "::error::the hook let an unreferenced commit through"
+            exit 1
+          fi
+          tasc mark core-001 in_progress
+          git add -A
+          git commit -q -m "core-001: adopt the gate"
+          git commit -q --allow-empty -m "chore: tidy [skip-task]"
+          test "$(git rev-list --count HEAD)" -eq 2
 
   build:
     runs-on: ubuntu-latest

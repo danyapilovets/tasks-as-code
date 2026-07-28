@@ -31,6 +31,19 @@ class JiraSettings(BaseModel):
     status_map: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_JIRA_STATUS_MAP))
 
 
+class RefSettings(BaseModel):
+    """Rules for ``tasc check-ref``, the gate that ties changes to tasks."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    #: Text containing one of these skips the check. An escape hatch is what keeps
+    #: people from disabling the hook altogether the first time it blocks them.
+    skip_markers: list[str] = Field(default_factory=lambda: ["[skip-task]"])
+    #: Require the referenced task to be in this status, e.g. ``in_progress``.
+    #: ``None`` accepts any status except ``done``.
+    require_status: str | None = None
+
+
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -43,6 +56,7 @@ class Config(BaseModel):
     done_dir: str | None = None
     #: Days after which an in_progress task is reported by ``tasc stale``.
     stale_after_days: int = Field(default=7, ge=1)
+    refs: RefSettings = Field(default_factory=RefSettings)
     jira: JiraSettings = Field(default_factory=JiraSettings)
 
     @classmethod

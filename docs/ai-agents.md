@@ -33,6 +33,12 @@ Two properties make this reliable: selection is deterministic, so the same
 repository state always yields the same task; and ids are allocated by the tool,
 so an agent cannot reference a task that does not exist.
 
+The last line of that rule is the one an agent quietly drops, so it is worth
+enforcing rather than requesting. `tasc check-ref`, wired to a `commit-msg` hook
+and to CI, rejects a commit that names no task — and rejects an invented id,
+which is what "never invent a task id" actually looks like when it fails. See
+[enforcement.md](enforcement.md).
+
 ## Why deterministic selection matters
 
 `tasc next` orders ready tasks by priority, then by id, and excludes any task
@@ -121,6 +127,21 @@ Exits `1` when `count` is greater than zero.
 { "threshold_days": 7, "count": 1, "stale": [ { "id": "api-002", "...": "..." } ] }
 ```
 
+### `tasc check-ref --json`
+
+Exits `1` unless `ok`. `invented` is the field to pay attention to: those ids
+were cited and do not exist.
+
+```json
+{
+  "ok": false,
+  "referenced": ["api-002"],
+  "invented": ["api-404"],
+  "wrong_status": {},
+  "skipped": null
+}
+```
+
 ### `tasc new`, `tasc mark`, `tasc done` with `--json`
 
 `new` and `mark` return the resulting task. `done` returns where it went:
@@ -151,6 +172,7 @@ can read stderr from the same invocation.
 - run: tasc validate   # duplicate ids, unknown or self dependencies
 - run: tasc stale      # work started and abandoned
 - run: tasc reindex    # INDEX.md is generated, not committed
+- run: tasc check-ref "$PR_TITLE"   # the change names a task that exists
 ```
 
 `tasc stale` catches the specific failure mode of agent-driven work: a task

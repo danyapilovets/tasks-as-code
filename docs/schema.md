@@ -126,6 +126,9 @@ project_name: Your Project   # heading of the generated index
 tasks_dir: tasks             # where the tree lives
 done_dir: null               # quarterly logs; defaults to <tasks_dir>/done
 stale_after_days: 7          # threshold for `tasc stale`
+refs:                        # rules for `tasc check-ref`
+  skip_markers: ["[skip-task]"]   # a message containing one of these is skipped
+  require_status: null            # e.g. in_progress; null accepts any open status
 jira:
   label_prefix: tasc
   status_map:
@@ -137,6 +140,9 @@ jira:
 
 Unknown keys are rejected: a silently ignored typo would look like the setting
 had no effect.
+
+`skip_markers: []` removes the escape hatch from `check-ref`; see
+[enforcement.md](enforcement.md) for why that is usually the wrong trade.
 
 The project root is found by walking up from the current directory looking for
 `.tasc.yaml`, then for a `tasks/active/` tree — so the tool also works in a

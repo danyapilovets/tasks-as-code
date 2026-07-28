@@ -13,6 +13,7 @@ from typing import Any, NoReturn
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 
@@ -21,6 +22,7 @@ from .core.config import CONFIG_FILENAME, Config
 from .core.indexer import counts, write_index
 from .core.loader import TaskFileError, TaskRef, load_active, load_all, write_active_file
 from .core.paths import Paths, ProjectNotFound
+from .core.refs import check_text
 from .core.schema import Task
 from .core.workflow import (
     InvalidTransition,
@@ -508,6 +510,118 @@ def cmd_validate(
             err_console.print(f"  - {problem}")
         raise typer.Exit(1)
     console.print(f"[green]OK[/green] — {len(refs)} tasks valid")
+
+
+#: Delegates rather than reimplements the rule, so upgrading tasc upgrades the
+#: hook. Missing tasc is a warning, not a failure: a teammate without the tool
+#: installed should not be unable to commit.
+_COMMIT_MSG_HOOK = """#!/bin/sh
+# Installed by 'tasc install-hook'. Remove this file to stop the check.
+if command -v tasc >/dev/null 2>&1; then
+    exec tasc check-ref --file "$1"
+fi
+echo "tasc not found; skipping the task reference check." >&2
+"""
+
+
+def _git_hooks_dir(root: Path) -> Path | None:
+    """Locate the hooks directory, following the gitfile a worktree leaves behind."""
+    git = root / ".git"
+    if git.is_dir():
+        return git / "hooks"
+    if git.is_file():
+        # Worktrees and submodules store "gitdir: <path>" instead of a directory.
+        for line in git.read_text(encoding="utf-8").splitlines():
+            if line.startswith("gitdir:"):
+                target = Path(line.partition(":")[2].strip())
+                resolved = target if target.is_absolute() else (root / target).resolve()
+                return resolved / "hooks"
+    return None
+
+
+@app.command("install-hook")
+def cmd_install_hook(
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing commit-msg hook."),
+) -> None:
+    """Install a commit-msg hook that runs ``tasc check-ref``.
+
+    For repositories not using pre-commit. Git hooks are per-clone and cannot be
+    committed, so this is what each person runs once; CI is what actually
+    enforces the rule for everyone.
+    """
+    paths = _paths()
+    hooks = _git_hooks_dir(paths.root)
+    if hooks is None:
+        _fail(f"No git repository found at {paths.root}")
+
+    hook = hooks / "commit-msg"
+    if hook.exists() and not force:
+        _fail(f"{hook} already exists. Pass --force to replace it.")
+
+    hooks.mkdir(parents=True, exist_ok=True)
+    hook.write_text(_COMMIT_MSG_HOOK, encoding="utf-8")
+    hook.chmod(0o755)
+    console.print(f"[green]Installed[/green] {hook}")
+    console.print("Commits must now name a task. Bypass a single commit with --no-verify.")
+
+
+@app.command("check-ref")
+def cmd_check_ref(
+    text: str | None = typer.Argument(None, help="Text to check. Omit to read stdin."),
+    file: Path | None = typer.Option(
+        None, "--file", "-f", help="Read the text from a file, as commit-msg hooks pass it."
+    ),
+    require_status: str | None = typer.Option(
+        None, "--require-status", help="Demand this status, e.g. in_progress."
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
+) -> None:
+    """Check that a commit message, PR title or branch name names a real task.
+
+    A regex in a hook can already demand that some id is present. This checks the
+    id against the backlog, which is the part that catches an agent citing a task
+    it invented. Exits non-zero on failure, so it works as a commit-msg hook and
+    as a required status check.
+    """
+    if file is not None:
+        try:
+            text = file.read_text(encoding="utf-8")
+        except OSError as exc:
+            _fail(f"Could not read {file}: {exc}", as_json)
+    elif text is None:
+        text = sys.stdin.read()
+
+    paths = _paths(as_json)
+    refs = _load(paths, as_json)
+    settings = paths.config.refs
+    result = check_text(
+        text,
+        refs,
+        skip_markers=settings.skip_markers,
+        require_status=require_status or settings.require_status,
+    )
+
+    if as_json:
+        _emit(result.to_dict())
+        raise typer.Exit(0 if result.ok else 1)
+
+    if result.skipped:
+        # Markers are bracketed by convention, which is also Rich's markup syntax:
+        # printed unescaped, "[skip-task]" renders as nothing at all.
+        console.print(f"[yellow]Skipped[/yellow] — {escape(result.skipped)}")
+        return
+    if result.ok:
+        console.print(f"[green]OK[/green] — references {', '.join(result.referenced)}")
+        return
+
+    err_console.print("[red]No valid task reference:[/red]")
+    for problem in result.problems():
+        err_console.print(f"  - {escape(problem)}")
+    marker = settings.skip_markers[0] if settings.skip_markers else "[skip-task]"
+    err_console.print(
+        f"\nRun [bold]tasc next[/bold] to see what to work on, or add {escape(marker)} to bypass."
+    )
+    raise typer.Exit(1)
 
 
 @app.command("stale")

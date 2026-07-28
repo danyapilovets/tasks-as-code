@@ -35,6 +35,12 @@ bug even if the tests pass.
    agents. Golden values in `tests/test_parallel.py` pin this.
 8. **Derived files are not tracked.** `INDEX.md` is regenerated on every write;
    committing it makes conflicts routine.
+9. **The reference check resolves ids, and keeps its escape hatch.**
+   `check_text` fails an id that does not exist — a pattern match would not, and
+   that is the whole point of it living here. It must keep ignoring text that
+   only looks like an id, keep exempting merges and reverts, and keep honouring
+   `skip_markers`. A gate with no visible way out gets bypassed with
+   `--no-verify`, which leaves no trace at all.
 
 ## Layout
 
@@ -47,6 +53,7 @@ src/tasks_as_code/
 │   ├── paths.py      root discovery, resolved locations
 │   ├── loader.py     reading and writing task files
 │   ├── workflow.py   selection, transitions, archiving, id allocation
+│   ├── refs.py       resolving task ids cited in commit messages
 │   └── indexer.py    INDEX.md rendering
 └── integrations/
     └── jira.py       optional, one-way

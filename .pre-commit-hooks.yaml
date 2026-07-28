@@ -1,0 +1,30 @@
+# Lets any repository enforce the task gate without vendoring a script:
+#
+#   repos:
+#     - repo: https://github.com/danyapilovets/tasks-as-code
+#       rev: v1.0.0
+#       hooks:
+#         - id: tasc-check-ref
+#         - id: tasc-validate
+#
+# pre-commit installs tasks-as-code into its own environment, so the hooks work
+# whether or not tasc is on the developer's PATH.
+#
+# The consuming repository needs the commit-msg hook type installed:
+#   pre-commit install --hook-type commit-msg
+- id: tasc-check-ref
+  name: commit message references a real task
+  description: Fail when the message names no task, or names one that does not exist.
+  # A commit-msg hook is handed exactly one filename, the message being written.
+  entry: tasc check-ref --file
+  language: python
+  stages: [commit-msg]
+
+- id: tasc-validate
+  name: task files are valid
+  description: Schema, duplicate ids and unknown dependencies.
+  entry: tasc validate
+  language: python
+  files: ^tasks/.*\.ya?ml$
+  pass_filenames: false
+  stages: [pre-commit, pre-merge-commit, pre-push, manual]

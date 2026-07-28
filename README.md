@@ -126,6 +126,8 @@ without the tool dropping them.
 | `tasc done <id>` | Close it: archive the file, append to the quarterly log |
 | `tasc validate` | Check the schema and structure; non-zero on any problem |
 | `tasc stale` | Report abandoned in-progress work; non-zero if any |
+| `tasc check-ref` | Check that a message names a task that exists; non-zero if not |
+| `tasc install-hook` | Install a `commit-msg` hook running `check-ref` |
 | `tasc reindex` | Regenerate `INDEX.md` |
 | `tasc sync` | Push to Jira Cloud (one-way) |
 
@@ -183,7 +185,62 @@ applied, and `tasc list` ignores them so one command always shows everything. Fo
 why this stops at git and does not become a server, see
 [`docs/parallel-agents.md`](docs/parallel-agents.md).
 
-## Enforce it in CI
+## Making a task mandatory
+
+A backlog nobody is required to use describes intentions, not work. Two layers
+turn it into the actual entry point, and neither asks anyone to remember a rule.
+
+**Locally**, a `commit-msg` hook rejects a commit that names no task:
+
+```sh
+tasc install-hook        # writes .git/hooks/commit-msg
+```
+
+```console
+$ git commit -m "fix the thing"
+No valid task reference:
+  - no task reference found — mention a task id such as 'api-004'
+```
+
+The check is not a regex. It resolves the id against the backlog, so a
+fabricated `api-999` fails too — which is the failure mode of an agent that
+needed an id and made one up. Text that merely looks like an id (`utf-8`,
+`sha-256`) is ignored, and merges, reverts and fixups pass untouched.
+
+**In CI**, where `--no-verify` cannot reach, one reusable workflow is the whole
+setup:
+
+```yaml
+name: Tasks
+on: [pull_request]
+jobs:
+  gate:
+    uses: danyapilovets/tasks-as-code/.github/workflows/task-gate.yml@v1.0.0
+```
+
+It validates the task files and checks the pull request title — the text that
+becomes the commit on a squash merge. Make it a required status check and the
+rule holds for everyone, including agents. Add `with: check-commits: true` to
+demand a reference in every commit, or `with: require-status: in_progress` to
+demand the task was actually started.
+
+If you use pre-commit, this repository ships the hooks:
+
+```yaml
+repos:
+  - repo: https://github.com/danyapilovets/tasks-as-code
+    rev: v1.0.0
+    hooks:
+      - id: tasc-check-ref     # needs: pre-commit install --hook-type commit-msg
+      - id: tasc-validate
+```
+
+`[skip-task]` in the message bypasses the check for a genuine one-off. That
+escape hatch is deliberate: a gate with no way out is a gate people disable.
+[`docs/enforcement.md`](docs/enforcement.md) covers rollout on an existing
+repository and what to do about bots.
+
+Whatever else you gate on, these three pay for themselves:
 
 ```yaml
 - run: tasc validate   # fails on duplicate ids or unknown dependencies
@@ -200,6 +257,9 @@ project_name: Your Project
 tasks_dir: tasks
 done_dir: null          # defaults to <tasks_dir>/done
 stale_after_days: 7
+refs:
+  skip_markers: ["[skip-task]"]   # message containing this bypasses check-ref
+  require_status: null            # e.g. in_progress, to demand work was started
 jira:
   label_prefix: tasc
   status_map:
@@ -234,9 +294,18 @@ selection, JSON output, and one-way Jira sync. No board, no server, no daemon.
 
 ## Status
 
-Version 0.1.0, early but tested: 99% coverage, linted with ruff, exercised on
-Linux, macOS and Windows across Python 3.10 to 3.13.
-The CLI surface and file format may still change before 1.0 — see
+Version 1.0.0: 99% coverage, linted with ruff, exercised on Linux, macOS and
+Windows across Python 3.10 to 3.13.
+
+Three things are covered by [semantic versioning](https://semver.org), because
+they are what you and your agents build against:
+
+- the CLI surface — command names, flags and exit codes,
+- the YAML task format, including how values are normalised,
+- the `--json` output shapes. New fields may appear; existing ones will not be
+  renamed or removed without a major version.
+
+Console output for humans is not a contract. Changes are recorded in
 [CHANGELOG.md](CHANGELOG.md).
 
 ## Contributing

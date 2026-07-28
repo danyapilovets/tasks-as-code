@@ -7,9 +7,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-## [0.1.0] — 2026-07-28
+## [1.0.0] — 2026-07-28
 
-First public release.
+First public release. Released at 1.0 rather than 0.x deliberately: the CLI
+surface, the YAML task format and the `--json` shapes are what other tools and
+agents build against, so they are covered by semantic versioning from the start.
+A breaking change to any of them requires a major version.
 
 ### Added
 
@@ -34,6 +37,17 @@ First public release.
   `TASC_OWNER`, `TASC_EPIC` and `TASC_SHARD` set a lane once instead of repeating
   flags; `tasc next` names the filters it applied, and `tasc list` ignores them so
   one command always shows the whole backlog.
+- Repository-level enforcement, so a change arrives with a task or does not
+  arrive: `tasc check-ref` accepts a commit message, pull request title or branch
+  name and requires it to name a task that exists and is open. It resolves the id
+  against the backlog rather than matching a pattern, which is what catches an
+  agent citing a task it invented; text that merely looks like an id (`utf-8`,
+  `sha-256`) is ignored, and merges, reverts and fixups are exempt.
+  `tasc install-hook` installs it as a `commit-msg` hook, `.pre-commit-hooks.yaml`
+  exposes it to pre-commit, and a reusable GitHub workflow
+  (`.github/workflows/task-gate.yml`) makes it a required status check.
+  `[skip-task]` in the message is a visible, greppable escape hatch; both the
+  markers and an optional required status are configurable under `refs:`.
 - `--json` on every read command, so AI coding agents consume a stable contract
   rather than scraped console output. Human-facing errors go to stderr to keep
   stdout parseable. Paths are emitted with forward slashes on every platform.
@@ -51,5 +65,5 @@ First public release.
   `WIP` and `closed` resolve to canonical values.
 - Unknown task fields are preserved on write, so teams can attach their own.
 
-[Unreleased]: https://github.com/danyapilovets/tasks-as-code/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/danyapilovets/tasks-as-code/releases/tag/v0.1.0
+[Unreleased]: https://github.com/danyapilovets/tasks-as-code/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/danyapilovets/tasks-as-code/releases/tag/v1.0.0
