@@ -125,15 +125,23 @@ def test_configured_markers_replace_the_default(backlog: Paths) -> None:
     assert run("check-ref", "typo [skip-task]")[0] == 1
 
 
-def test_install_hook_writes_an_executable_commit_msg_hook(backlog: Paths) -> None:
+def test_install_hook_writes_a_commit_msg_hook(backlog: Paths) -> None:
     (backlog.root / ".git").mkdir()
     code, out = run("install-hook")
     assert code == 0
 
     hook = backlog.root / ".git" / "hooks" / "commit-msg"
     assert "tasc check-ref --file" in hook.read_text(encoding="utf-8")
-    assert hook.stat().st_mode & stat.S_IXUSR
     assert "--no-verify" in out
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Windows has no execute bit to set")
+def test_the_hook_is_executable(backlog: Paths) -> None:
+    """Without the bit, git reports the hook as ignored and commits go through."""
+    (backlog.root / ".git").mkdir()
+    assert run("install-hook")[0] == 0
+    hook = backlog.root / ".git" / "hooks" / "commit-msg"
+    assert hook.stat().st_mode & stat.S_IXUSR
 
 
 def test_install_hook_refuses_to_clobber_an_existing_hook(backlog: Paths) -> None:
@@ -167,7 +175,7 @@ def test_install_hook_without_a_repository_says_so(backlog: Paths) -> None:
     assert "No git repository" in out
 
 
-@pytest.mark.skipif(not os.environ.get("PATH"), reason="needs a shell")
+@pytest.mark.skipif(not Path("/bin/sh").exists(), reason="no POSIX shell to run it with")
 def test_the_installed_hook_is_a_working_shell_script(backlog: Paths) -> None:
     """Run the generated script directly: a syntax error in it would only ever
     show up as a mysteriously failing commit."""

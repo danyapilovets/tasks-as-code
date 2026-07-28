@@ -560,6 +560,8 @@ def cmd_install_hook(
 
     hooks.mkdir(parents=True, exist_ok=True)
     hook.write_text(_COMMIT_MSG_HOOK, encoding="utf-8")
+    # On POSIX this is what makes git run the file rather than ignore it. Windows
+    # has no execute bit, so the call only clears the read-only flag.
     hook.chmod(0o755)
     console.print(f"[green]Installed[/green] {hook}")
     console.print("Commits must now name a task. Bypass a single commit with --no-verify.")
