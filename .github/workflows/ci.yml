@@ -64,13 +64,35 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/demo && cd /tmp/demo
           tasc init --name "CI Demo"
+          grep -q 'tasks/INDEX.md' .gitignore
           tasc new api --summary "Ship the thing" --priority High
           tasc next --json
-          tasc mark api-001 in_progress
+          tasc mark api-001 in_progress --owner ci-agent
           tasc done api-001 --note "done in CI"
           tasc validate
           tasc stale
           test -f tasks/INDEX.md
+      - name: Shards must be disjoint and cover the backlog
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/shards && cd /tmp/shards
+          tasc init --name "Shards"
+          for n in $(seq 1 12); do tasc new api --summary "Task $n" >/dev/null; done
+          total=$(tasc list --json --status todo | python -c 'import json,sys; print(json.load(sys.stdin)["count"])')
+          sum=0
+          for k in 1 2 3; do
+            got=$(tasc next --json --limit 99 --shard "$k/3" | python -c 'import json,sys; print(len(json.load(sys.stdin)["next"]))')
+            sum=$((sum + got))
+          done
+          test "$sum" -eq "$total"
+      - name: A custom done_dir needs no file moves
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/legacy && cd /tmp/legacy
+          tasc init --name "Legacy" --done-dir docs/changelog
+          tasc new api --summary "Adopt tasc" >/dev/null
+          tasc done api-001 --note "adopted"
+          ls docs/changelog/*.md
 
   build:
     runs-on: ubuntu-latest

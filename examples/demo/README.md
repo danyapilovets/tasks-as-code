@@ -21,5 +21,9 @@ Things worth noticing:
   even though nothing else is competing for attention.
 - `api-001` lives in `archive/` yet still satisfies `api-002`'s dependency:
   closed work stays resolvable without being loaded into the active backlog.
+- `api-002` is owned by `agent-a`, so `tasc next --owner agent-b` does not even
+  mention it — including in the in-progress warning.
+- `tasks/INDEX.md` is absent until you run `tasc reindex`: it is generated, and
+  `.gitignore` here keeps it out of version control.
 
 Nothing here is used by the test suite; edit it freely.

@@ -40,7 +40,7 @@ class Paths:
         self.tasks = root / self.config.tasks_dir
         self.active = self.tasks / "active"
         self.archive = self.tasks / "archive"
-        self.done = self.tasks / "done"
+        self.done = root / self.config.done_dir if self.config.done_dir else self.tasks / "done"
         self.index_md = self.tasks / "INDEX.md"
 
     @classmethod
@@ -48,8 +48,12 @@ class Paths:
         return cls(find_root(start))
 
     def relative(self, path: Path) -> str:
-        """Path relative to the root, for stable output across machines."""
+        """Path relative to the root, with forward slashes.
+
+        Posix separators keep JSON output and committed logs identical on
+        Windows, so an agent's output does not depend on its host.
+        """
         try:
-            return str(path.relative_to(self.root))
+            return path.relative_to(self.root).as_posix()
         except ValueError:
             return path.name

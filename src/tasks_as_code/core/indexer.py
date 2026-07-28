@@ -54,8 +54,8 @@ def render_index(paths: Paths, refs: list[TaskRef], today: date | None = None) -
     lines += ["", "## Open", ""]
     if open_refs:
         lines += [
-            "| ID | Status | Priority | Epic | Summary | File |",
-            "|----|--------|----------|------|---------|------|",
+            "| ID | Status | Priority | Epic | Owner | Summary | File |",
+            "|----|--------|----------|------|-------|---------|------|",
         ]
         ordered = sorted(
             open_refs,
@@ -67,7 +67,8 @@ def render_index(paths: Paths, refs: list[TaskRef], today: date | None = None) -
         )
         lines += [
             f"| `{ref.task.id}` | {ref.task.status} | {ref.task.priority} | {ref.epic} "
-            f"| {_cell(ref.task.summary)} | `{paths.relative(ref.file)}` |"
+            f"| {_cell(ref.task.owner or '—', 40)} | {_cell(ref.task.summary)} "
+            f"| `{paths.relative(ref.file)}` |"
             for ref in ordered
         ]
     else:

@@ -15,7 +15,7 @@ pip install -e ".[dev]"
 Verify the checkout:
 
 ```sh
-pytest          # 155 tests, coverage gate at 95%
+pytest          # 202 tests, coverage gate at 95%
 ruff check .
 ruff format --check .
 ```

@@ -21,6 +21,14 @@ prompt:
 - Reference the task id in the commit message.
 ```
 
+When more than one agent works the same backlog, give each its own slice and its
+own name:
+
+```markdown
+- You are `agent-a`. Always pass `--shard 1/3 --owner agent-a` to `tasc next`,
+  and claim work with `tasc mark <id> in_progress --owner agent-a`.
+```
+
 Two properties make this reliable: selection is deterministic, so the same
 repository state always yields the same task; and ids are allocated by the tool,
 so an agent cannot reference a task that does not exist.
@@ -33,6 +41,11 @@ same repository state gives the same answer to every agent, on every run.
 
 An id in `depends_on` that resolves to nothing is treated as blocking, not
 ignored — a typo cannot promote a task to "ready".
+
+The same property has a sharp edge with several agents: they all receive the
+identical task, because another agent's `in_progress` is invisible until it
+pushes. Partition the backlog with `--shard`, `--epic` or `--owner`; see
+[parallel-agents.md](parallel-agents.md).
 
 ## JSON shapes
 
@@ -52,6 +65,7 @@ agent can notice it left something unfinished.
       "type": "Task",
       "priority": "High",
       "status": "todo",
+      "owner": null,
       "acceptance_criteria": ["Retries 3 times with exponential backoff"],
       "depends_on": [],
       "epic": "api",
@@ -62,6 +76,10 @@ agent can notice it left something unfinished.
   ]
 }
 ```
+
+`--owner NAME` restricts `next` to unassigned tasks and the agent's own, and
+filters `in_progress` the same way. `--epic NAME` and `--shard i/n` narrow it
+further. `file` paths always use forward slashes, including on Windows.
 
 ### `tasc show <id> --json`
 
@@ -76,6 +94,9 @@ Same fields plus `blocking_dependencies`, listing the ids that are not done:
 ```json
 { "count": 2, "tasks": [ { "id": "api-004", "...": "..." } ] }
 ```
+
+Filterable by `--epic`, `--status` and `--owner`. Pass `--owner none` for tasks
+nobody has claimed.
 
 ### `tasc validate --json`
 
@@ -129,6 +150,7 @@ can read stderr from the same invocation.
 ```yaml
 - run: tasc validate   # duplicate ids, unknown or self dependencies
 - run: tasc stale      # work started and abandoned
+- run: tasc reindex    # INDEX.md is generated, not committed
 ```
 
 `tasc stale` catches the specific failure mode of agent-driven work: a task
@@ -139,4 +161,5 @@ reported too, since starting work without stamping it is the same drift.
 
 Open work is grouped per epic in one file, so an agent reads the epic it needs
 rather than the entire backlog. Closed work is one file per task and is only
-opened on request. `INDEX.md` gives the whole picture in a single read.
+opened on request. `INDEX.md` gives the whole picture in a single read — run
+`tasc reindex` first, since it is generated rather than tracked.

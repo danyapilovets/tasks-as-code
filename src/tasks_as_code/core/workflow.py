@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import zlib
 from datetime import date, datetime
 from pathlib import Path
 
@@ -50,15 +51,58 @@ def blocking_dependencies(ref: TaskRef, refs: list[TaskRef]) -> list[str]:
     return [dep for dep in ref.task.depends_on if dep not in done_ids]
 
 
-def pick_next(refs: list[TaskRef], limit: int = 1) -> list[TaskRef]:
+def parse_shard(value: str) -> tuple[int, int]:
+    """Parse ``"2/3"`` into ``(2, 3)``."""
+    index, _, total = value.partition("/")
+    if not index.strip().isdigit() or not total.strip().isdigit():
+        raise ValueError(f"Shard must look like '2/3', got {value!r}")
+    index_int, total_int = int(index), int(total)
+    if not 1 <= index_int <= total_int:
+        raise ValueError(f"Shard {value!r} must satisfy 1 <= index <= total")
+    return index_int, total_int
+
+
+def in_shard(task_id: str, shard: tuple[int, int]) -> bool:
+    """Whether a task id belongs to shard ``index`` of ``total``.
+
+    Uses CRC32 rather than :func:`hash`, whose string hashing is salted per
+    process — a shard must select the same tasks on every run and every machine.
+    """
+    index, total = shard
+    return zlib.crc32(task_id.encode()) % total == index - 1
+
+
+def pick_next(
+    refs: list[TaskRef],
+    limit: int = 1,
+    owner: str | None = None,
+    epic: str | None = None,
+    shard: tuple[int, int] | None = None,
+) -> list[TaskRef]:
     """Return up to ``limit`` ready tasks, highest priority first.
 
     Ordering is (priority, id) so the same repository state always yields the
     same answer — an agent re-running the command cannot drift.
+
+    That same determinism is a hazard when several agents ask at once: they all
+    receive the identical task, because another agent's ``in_progress`` only
+    becomes visible once it pushes. The filters partition the backlog instead:
+
+    - ``owner`` hides tasks assigned to somebody else, leaving unassigned work
+      available to whoever asks first;
+    - ``epic`` restricts selection to one epic, for agent-per-area splits;
+    - ``shard`` partitions deterministically by task id, so ``1/3``, ``2/3`` and
+      ``3/3`` are disjoint and need no coordination at all.
     """
     ready = [
         ref for ref in refs if ref.task.status == "todo" and not blocking_dependencies(ref, refs)
     ]
+    if owner is not None:
+        ready = [ref for ref in ready if ref.task.owner in (None, owner)]
+    if epic is not None:
+        ready = [ref for ref in ready if epic in (ref.epic, ref.task.epic_prefix)]
+    if shard is not None:
+        ready = [ref for ref in ready if in_shard(ref.task.id, shard)]
     ready.sort(key=lambda ref: (ref.task.priority_rank, ref.task.id))
     return ready[:limit]
 
@@ -91,8 +135,17 @@ def _age_in_days(updated: str | None, today: date) -> int | None:
     return (today - stamped).days
 
 
-def set_status(paths: Paths, task_id: str, new_status: str) -> TaskRef:
-    """Change a task's status in its active file and stamp ``updated``."""
+def set_status(
+    paths: Paths,
+    task_id: str,
+    new_status: str,
+    owner: str | None = None,
+) -> TaskRef:
+    """Change a task's status in its active file and stamp ``updated``.
+
+    Passing ``owner`` claims the task in the same write, so an agent announces
+    both that work started and who started it in one commit.
+    """
     if new_status not in {"todo", "in_progress", "blocked"}:
         raise InvalidTransition(
             f"Cannot set status '{new_status}' here. Use 'tasc done {task_id}' to close a task."
@@ -101,8 +154,15 @@ def set_status(paths: Paths, task_id: str, new_status: str) -> TaskRef:
     ref = require(refs, task_id)
     if ref.location != "active":
         raise InvalidTransition(f"Task {task_id} is archived; it cannot change status")
+    if owner and ref.task.owner and ref.task.owner != owner:
+        raise InvalidTransition(
+            f"Task {task_id} is already owned by {ref.task.owner}. "
+            "Clear the owner in the YAML file if the reassignment is intended."
+        )
 
     ref.task.status = new_status  # type: ignore[assignment]
+    if owner:
+        ref.task.owner = owner
     ref.task.updated = date.today().isoformat()
     # Write back the in-memory refs. Reloading from disk here would discard the
     # change above and leave the task at its old status.
@@ -161,6 +221,7 @@ def create(
     summary: str,
     priority: str = "Medium",
     description: str = "",
+    owner: str | None = None,
 ) -> TaskRef:
     """Create a task with an auto-numbered id in ``tasks/active/<epic>.yaml``."""
     refs = load_all(paths)
@@ -170,6 +231,7 @@ def create(
         description=description,
         priority=priority,  # type: ignore[arg-type]
         status="todo",
+        owner=owner,
         updated=date.today().isoformat(),
     )
 

@@ -36,8 +36,11 @@ class Config(BaseModel):
 
     #: Shown as the heading of the generated index.
     project_name: str = "Project"
-    #: Directory (relative to the repo root) holding active/, archive/ and done/.
+    #: Directory (relative to the repo root) holding active/ and archive/.
     tasks_dir: str = "tasks"
+    #: Quarterly logs. Defaults to ``<tasks_dir>/done``; set it to adopt a
+    #: repository whose logs already live somewhere else.
+    done_dir: str | None = None
     #: Days after which an in_progress task is reported by ``tasc stale``.
     stale_after_days: int = Field(default=7, ge=1)
     jira: JiraSettings = Field(default_factory=JiraSettings)

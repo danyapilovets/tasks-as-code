@@ -81,6 +81,9 @@ class Task(BaseModel):
     acceptance_criteria: list[str] = Field(default_factory=list)
     depends_on: list[str] = Field(default_factory=list)
     epic: str | None = None
+    #: Who is doing this. Lets several agents work one backlog in parallel
+    #: without each of them selecting the same task.
+    owner: str | None = None
     #: ISO date of the last status change. Stamped on create/mark/done so
     #: ``tasc stale`` can flag work that has been in progress too long.
     updated: str | None = None

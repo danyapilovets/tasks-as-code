@@ -7,11 +7,16 @@ tasks/
 ├── active/<epic>.yaml    open work, many tasks per file
 ├── archive/<id>.yaml     closed work, one task per file
 ├── done/<YYYY>-Q<n>.md   quarterly log of what shipped
-└── INDEX.md              generated; do not edit
+└── INDEX.md              generated and git-ignored; do not edit
 ```
 
 Open work is grouped so a reader — human or agent — loads a whole epic in one
 read. Closed work is split so history costs nothing until you ask for it.
+
+`done/` can live anywhere via `done_dir`, so a repository that already keeps
+release notes elsewhere can adopt the tool without moving files. `INDEX.md` is
+derived from the YAML and regenerated on every write, so it is git-ignored rather
+than tracked — see [parallel-agents.md](parallel-agents.md).
 
 ## Active file
 
@@ -49,10 +54,14 @@ A bare task mapping without the `task:` wrapper is also accepted on read.
 | `type` | enum | `Task` | `Task`, `Story`, `Bug`, `Epic` |
 | `priority` | enum | `Medium` | `Critical`, `High`, `Medium`, `Low` |
 | `status` | enum | `todo` | `todo`, `in_progress`, `blocked`, `done` |
+| `owner` | string | unset | Who is doing it; filters `next` and `list` |
 | `acceptance_criteria` | list of strings | `[]` | What "done" means |
 | `depends_on` | list of ids | `[]` | Blocks selection until each is done |
 | `epic` | string | inferred | Falls back to the id prefix |
 | `updated` | ISO date | set by CLI | Last status change; drives `tasc stale` |
+
+Unassigned tasks omit `owner` entirely rather than writing `owner: null`, so files
+stay readable. Any string is accepted — an agent name, a git handle, a person.
 
 ### Ids
 
@@ -91,7 +100,6 @@ Unknown keys are preserved through read and write:
 ```yaml
   - id: api-001
     summary: Add retry
-    owner: dana
     points: 3
     tracker_url: https://...
 ```
@@ -116,6 +124,7 @@ Unparsable YAML is reported with the filename rather than a bare parser error.
 ```yaml
 project_name: Your Project   # heading of the generated index
 tasks_dir: tasks             # where the tree lives
+done_dir: null               # quarterly logs; defaults to <tasks_dir>/done
 stale_after_days: 7          # threshold for `tasc stale`
 jira:
   label_prefix: tasc

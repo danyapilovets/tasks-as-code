@@ -4,6 +4,8 @@
   validation and configuration.
 - [`ai-agents.md`](ai-agents.md) — how to drive the tool from an AI coding
   agent: the rule to give it, the JSON shapes, and CI guardrails.
+- [`parallel-agents.md`](parallel-agents.md) — running several agents on one
+  backlog with shards, epics and owners, and why there is no server.
 - [`jira-sync.md`](jira-sync.md) — one-way Jira Cloud sync, how issues are
   matched, and what it does not do.
 

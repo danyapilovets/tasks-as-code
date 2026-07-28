@@ -23,12 +23,20 @@ First public release.
   self-dependencies. Exits non-zero, so it works as a CI gate or pre-commit hook.
 - `tasc stale` — reports in-progress work older than a configurable threshold,
   including tasks that were started without an `updated` date. Exits non-zero.
-- `tasc list`, `tasc show`, `tasc reindex`, and a generated `INDEX.md`.
+- `tasc list`, `tasc show`, `tasc reindex`, and a generated `INDEX.md`. The index
+  is git-ignored by `tasc init`, because a file regenerated on every write
+  conflicts in nearly every pull request; `--track-index` opts out.
+- Support for several agents on one backlog, without a coordinating server:
+  `tasc next --shard i/n` partitions the backlog deterministically by a CRC32 of
+  the task id, `--epic` scopes it to one area, and `--owner` hides work claimed by
+  others. Tasks carry an `owner` field, set by `tasc new --owner` or
+  `tasc mark <id> in_progress --owner`; claiming a task someone else owns fails.
 - `--json` on every read command, so AI coding agents consume a stable contract
   rather than scraped console output. Human-facing errors go to stderr to keep
-  stdout parseable.
-- Configuration via `.tasc.yaml`: project name, tasks directory, stale
-  threshold, and Jira label prefix and status map.
+  stdout parseable. Paths are emitted with forward slashes on every platform.
+- Configuration via `.tasc.yaml`: project name, tasks directory, done-log
+  directory, stale threshold, and Jira label prefix and status map. `done_dir`
+  lets an existing repository adopt the tool without moving its release notes.
 - Optional one-way Jira Cloud sync (`tasc sync`, extra: `[jira]`). Local YAML
   remains the source of truth; nothing is written back into task files.
 - Status, priority and type values are normalised on read, so `To Do`, `to-do`,

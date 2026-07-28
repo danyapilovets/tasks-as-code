@@ -30,6 +30,11 @@ bug even if the tests pass.
    dropping it silently loses their work.
 6. **Unmet dependencies block, including unknown ids.** A typo must never make a
    task look ready.
+7. **Shard membership is stable.** `in_shard` uses CRC32 because `hash()` is
+   salted per process; a shard that reshuffles between runs hands one task to two
+   agents. Golden values in `tests/test_parallel.py` pin this.
+8. **Derived files are not tracked.** `INDEX.md` is regenerated on every write;
+   committing it makes conflicts routine.
 
 ## Layout
 
@@ -65,7 +70,9 @@ nothing more.
 
 - Add a required dependency without a clear reason; optional features go behind
   an extra.
-- Introduce a database, server, daemon or background process.
+- Introduce a database, server, daemon or background process. Multi-agent
+  coordination is solved by partitioning the backlog, not by a coordinator — see
+  [`docs/parallel-agents.md`](docs/parallel-agents.md).
 - Add telemetry.
 - Write comments that restate the code. Comment a constraint the code cannot
   express, or say nothing.
