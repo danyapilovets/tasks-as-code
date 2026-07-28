@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -40,6 +41,20 @@ def test_version_works_without_a_subcommand() -> None:
     code, out = run("--version")
     assert code == 0
     assert __version__ in out
+
+
+def test_the_declared_version_matches_the_package_metadata() -> None:
+    """A release where the two disagree ships a wheel whose version is a lie, and
+    nothing else in the suite would notice.
+
+    Parsed by regex rather than tomllib, which is unavailable on Python 3.10.
+    """
+    pyproject = Path(__file__).parent.parent / "pyproject.toml"
+    declared = re.search(
+        r'^version = "([^"]+)"', pyproject.read_text(encoding="utf-8"), re.MULTILINE
+    )
+    assert declared is not None, "pyproject.toml has no version"
+    assert declared.group(1) == __version__
 
 
 def test_commands_outside_a_project_fail_with_guidance(tmp_path: Path, monkeypatch) -> None:

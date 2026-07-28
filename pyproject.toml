@@ -1,6 +1,6 @@
 [project]
 name = "tasks-as-code"
-version = "0.1.0"
+version = "1.0.0"
 description = "Git-native backlog for AI coding agents: YAML tasks, deterministic next-task selection, JSON output"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -9,7 +9,7 @@ license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
 authors = [{ name = "Danylo Pilovets", email = "w.pilovets@gmail.com" }]
 keywords = ["tasks", "backlog", "ai-agents", "yaml", "cli", "jira", "tasks-as-code"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3 :: Only",

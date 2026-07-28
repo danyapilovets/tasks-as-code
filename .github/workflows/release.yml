@@ -28,6 +28,10 @@ jobs:
 
   publish:
     needs: build
+    # Off until a PyPI trusted publisher exists for this project: set the
+    # repository variable PUBLISH_TO_PYPI to 'true'. Without the switch, a tag
+    # push fails on a step that is not the release itself.
+    if: vars.PUBLISH_TO_PYPI == 'true'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -41,7 +45,10 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@release/v1
 
   github-release:
-    needs: publish
+    # Deliberately parallel to publish rather than after it. The git tag is what
+    # 'pipx install git+...' and pre-commit resolve, so the release must not
+    # depend on PyPI accepting the upload.
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
