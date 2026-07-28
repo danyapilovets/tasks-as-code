@@ -1,0 +1,485 @@
+"""``tasc`` — the command line interface.
+
+Every read command supports ``--json`` so a coding agent consumes the same
+output a human reads, without scraping formatted tables.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+from typing import Any, NoReturn
+
+import typer
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+
+from . import __version__
+from .core.config import CONFIG_FILENAME, Config
+from .core.indexer import counts, write_index
+from .core.loader import TaskFileError, TaskRef, load_active, load_all, write_active_file
+from .core.paths import Paths, ProjectNotFound
+from .core.schema import Task
+from .core.workflow import (
+    InvalidTransition,
+    TaskNotFound,
+    archive,
+    blocking_dependencies,
+    create,
+    pick_next,
+    require,
+    set_status,
+    stale_in_progress,
+)
+
+app = typer.Typer(
+    add_completion=False,
+    no_args_is_help=True,
+    help="Tasks as code: a git-native backlog for AI coding agents and humans.",
+)
+console = Console()
+err_console = Console(stderr=True)
+
+STATUS_COLOURS = {
+    "in_progress": "yellow",
+    "todo": "white",
+    "blocked": "red",
+    "done": "green",
+}
+
+
+def _emit(payload: Any) -> None:
+    """Write machine-readable output to stdout with nothing else mixed in."""
+    print(json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True))
+
+
+def _fail(message: str, as_json: bool = False) -> NoReturn:
+    if as_json:
+        print(json.dumps({"error": message}, indent=2, ensure_ascii=False))
+    else:
+        err_console.print(f"[red]{message}[/red]")
+    raise typer.Exit(1)
+
+
+def _paths(as_json: bool = False) -> Paths:
+    try:
+        return Paths.discover()
+    except ProjectNotFound as exc:
+        _fail(str(exc), as_json)
+
+
+def _load(paths: Paths, as_json: bool = False, active_only: bool = False) -> list[TaskRef]:
+    try:
+        return load_active(paths) if active_only else load_all(paths)
+    except TaskFileError as exc:
+        _fail(f"Invalid task file: {exc}", as_json)
+
+
+def _version_callback(value: bool) -> None:
+    # Must run while parameters are parsed: by the time the group callback body
+    # would run, Click has already rejected the missing subcommand.
+    if value:
+        print(__version__)
+        raise typer.Exit()
+
+
+@app.callback()
+def _root(
+    version: bool = typer.Option(
+        False,
+        "--version",
+        "-V",
+        callback=_version_callback,
+        is_eager=True,
+        help="Print the version and exit.",
+    ),
+) -> None:
+    """Tasks as code: a git-native backlog for AI coding agents and humans."""
+
+
+@app.command("init")
+def cmd_init(
+    directory: Path | None = typer.Option(
+        None, "--dir", "-d", help="Repository root to initialise. Defaults to the cwd."
+    ),
+    name: str = typer.Option("Project", "--name", "-n", help="Project name for the index."),
+    tasks_dir: str = typer.Option("tasks", "--tasks-dir", help="Directory to hold tasks."),
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing config file."),
+) -> None:
+    """Create the task tree and config file. Existing files are left alone."""
+    root = (directory or Path.cwd()).resolve()
+    config_path = root / CONFIG_FILENAME
+    if config_path.exists() and not force:
+        _fail(f"{config_path} already exists. Pass --force to overwrite it.")
+
+    config = Config(project_name=name, tasks_dir=tasks_dir)
+    paths = Paths(root, config)
+    for folder in (paths.active, paths.archive, paths.done):
+        folder.mkdir(parents=True, exist_ok=True)
+    config.dump(config_path)
+
+    example = paths.active / "core.yaml"
+    if not example.exists():
+        write_active_file(
+            example,
+            epic="core",
+            description="Example epic. Rename it or delete it.",
+            tasks=[
+                Task(
+                    id="core-001",
+                    summary="Replace this example task with real work",
+                    description="Created by 'tasc init' to show the file format.",
+                    priority="Medium",
+                )
+            ],
+        )
+    write_index(paths, _load(paths))
+
+    console.print(
+        f"[green]Initialised[/green] {paths.relative(paths.tasks)}/ and {CONFIG_FILENAME}"
+    )
+    console.print("Next: [bold]tasc next[/bold]")
+
+
+@app.command("next")
+def cmd_next(
+    limit: int = typer.Option(1, "--limit", "-n", help="How many tasks to suggest."),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
+) -> None:
+    """Show the next ready task(s), highest priority first.
+
+    In-progress work is reported first: picking up something new while a task is
+    already open is the most common way an agent loses track of what it started.
+    """
+    paths = _paths(as_json)
+    refs = _load(paths, as_json)
+    in_progress = [ref for ref in refs if ref.task.status == "in_progress"]
+    ready = pick_next(refs, limit=limit)
+
+    if as_json:
+        _emit(
+            {
+                "in_progress": [ref.to_dict(paths) for ref in in_progress],
+                "next": [ref.to_dict(paths) for ref in ready],
+            }
+        )
+        return
+
+    if in_progress:
+        console.print("[yellow]Already in progress:[/yellow]")
+        for ref in in_progress:
+            console.print(f"  [bold]{ref.task.id}[/bold] — {ref.task.summary}")
+        console.print("")
+
+    if not ready:
+        console.print(
+            "[green]Nothing ready — all done, blocked, or waiting on dependencies.[/green]"
+        )
+        return
+
+    for ref in ready:
+        body = [
+            f"[bold]{ref.task.id}[/bold] — {ref.task.summary}",
+            f"epic: {ref.epic}   priority: {ref.task.priority}   file: {paths.relative(ref.file)}",
+        ]
+        if ref.task.description:
+            body += ["", ref.task.description]
+        if ref.task.acceptance_criteria:
+            body += ["", "[bold]Acceptance criteria:[/bold]"]
+            body += [f"  - {item}" for item in ref.task.acceptance_criteria]
+        console.print(Panel("\n".join(body), border_style="green"))
+
+    console.print(f"\nStart it: [bold]tasc mark {ready[0].task.id} in_progress[/bold]")
+
+
+@app.command("show")
+def cmd_show(
+    task_id: str,
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
+) -> None:
+    """Show one task in full, including what is blocking it."""
+    paths = _paths(as_json)
+    refs = _load(paths, as_json)
+    try:
+        ref = require(refs, task_id)
+    except TaskNotFound as exc:
+        _fail(str(exc), as_json)
+
+    blocking = blocking_dependencies(ref, refs)
+    if as_json:
+        _emit({**ref.to_dict(paths), "blocking_dependencies": blocking})
+        return
+
+    task = ref.task
+    console.print(f"[bold]{task.id}[/bold] — {task.summary}")
+    console.print(f"epic:      {ref.epic}")
+    console.print(f"status:    {task.status}")
+    console.print(f"priority:  {task.priority}")
+    console.print(f"type:      {task.type}")
+    console.print(f"updated:   {task.updated or '—'}")
+    console.print(f"file:      {paths.relative(ref.file)}")
+    if task.depends_on:
+        console.print(f"depends:   {', '.join(task.depends_on)}")
+    if blocking:
+        console.print(f"[red]blocked by: {', '.join(blocking)}[/red]")
+    if task.description:
+        console.print(f"\n{task.description}")
+    if task.acceptance_criteria:
+        console.print("\n[bold]Acceptance criteria:[/bold]")
+        for item in task.acceptance_criteria:
+            console.print(f"  - {item}")
+
+
+@app.command("list")
+def cmd_list(
+    epic: str | None = typer.Option(None, "--epic", "-e", help="Filter by epic."),
+    status: str | None = typer.Option(None, "--status", "-s", help="Filter by status."),
+    include_done: bool = typer.Option(False, "--all", help="Include archived tasks."),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
+) -> None:
+    """List tasks. Active only by default."""
+    paths = _paths(as_json)
+    refs = _load(paths, as_json, active_only=not include_done)
+
+    if epic:
+        refs = [ref for ref in refs if ref.epic == epic or ref.task.epic_prefix == epic]
+    if status:
+        refs = [ref for ref in refs if ref.task.status == status]
+
+    refs.sort(
+        key=lambda ref: (
+            0 if ref.task.status == "in_progress" else 1,
+            ref.task.priority_rank,
+            ref.task.id,
+        )
+    )
+
+    if as_json:
+        _emit({"count": len(refs), "tasks": [ref.to_dict(paths) for ref in refs]})
+        return
+
+    table = Table(show_header=True, header_style="bold")
+    for column in ("ID", "Status", "Priority", "Epic", "Summary"):
+        table.add_column(column)
+    for ref in refs:
+        colour = STATUS_COLOURS.get(ref.task.status, "white")
+        table.add_row(
+            ref.task.id,
+            f"[{colour}]{ref.task.status}[/{colour}]",
+            ref.task.priority,
+            ref.epic,
+            ref.task.summary[:80],
+        )
+    console.print(table)
+    console.print(f"\nTotal: {len(refs)}")
+
+
+@app.command("new")
+def cmd_new(
+    epic: str = typer.Argument(..., help="Epic prefix, e.g. 'api' or 'ui'."),
+    summary: str = typer.Option(..., "--summary", "-s", help="One-line summary."),
+    priority: str = typer.Option("Medium", "--priority", "-p", help="Critical|High|Medium|Low."),
+    description: str = typer.Option("", "--description", "-d", help="Longer description."),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
+) -> None:
+    """Create a task with an auto-numbered id."""
+    paths = _paths(as_json)
+    try:
+        ref = create(
+            paths, epic_prefix=epic, summary=summary, priority=priority, description=description
+        )
+    except Exception as exc:
+        _fail(f"Could not create task: {exc}", as_json)
+    write_index(paths, _load(paths, as_json))
+
+    if as_json:
+        _emit(ref.to_dict(paths))
+        return
+    console.print(
+        f"[green]Created[/green] [bold]{ref.task.id}[/bold] in {paths.relative(ref.file)}"
+    )
+
+
+@app.command("mark")
+def cmd_mark(
+    task_id: str,
+    status: str = typer.Argument(..., help="todo | in_progress | blocked"),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
+) -> None:
+    """Change a task's status and stamp today's date."""
+    paths = _paths(as_json)
+    try:
+        ref = set_status(paths, task_id, status)
+    except (TaskNotFound, InvalidTransition) as exc:
+        _fail(str(exc), as_json)
+    write_index(paths, _load(paths, as_json))
+
+    if as_json:
+        _emit(ref.to_dict(paths))
+        return
+    console.print(f"[green]{task_id}[/green] -> [bold]{status}[/bold] ({ref.task.summary})")
+
+
+@app.command("done")
+def cmd_done(
+    task_id: str,
+    note: str | None = typer.Option(None, "--note", "-m", help="What was actually done."),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
+) -> None:
+    """Close a task: mark done, move to archive, append to the quarterly log."""
+    paths = _paths(as_json)
+    try:
+        archive_path, log_path = archive(paths, task_id, note=note)
+    except (TaskNotFound, InvalidTransition) as exc:
+        _fail(str(exc), as_json)
+    write_index(paths, _load(paths, as_json))
+
+    if as_json:
+        _emit(
+            {
+                "id": task_id,
+                "archived_to": paths.relative(archive_path),
+                "logged_in": paths.relative(log_path),
+            }
+        )
+        return
+    console.print(f"[green]{task_id}[/green] archived -> {paths.relative(archive_path)}")
+    console.print(f"Logged in {paths.relative(log_path)}")
+
+
+@app.command("reindex")
+def cmd_reindex(
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
+) -> None:
+    """Regenerate INDEX.md from the current YAML state."""
+    paths = _paths(as_json)
+    refs = _load(paths, as_json)
+    index_path = write_index(paths, refs)
+    if as_json:
+        _emit({"index": paths.relative(index_path), "tasks": len(refs), **counts(refs)})
+        return
+    console.print(f"[green]Wrote[/green] {paths.relative(index_path)} ({len(refs)} tasks)")
+
+
+@app.command("validate")
+def cmd_validate(
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
+) -> None:
+    """Check every file against the schema and report structural problems.
+
+    Exits non-zero on any problem, so it works as a pre-commit hook or CI gate.
+    """
+    paths = _paths(as_json)
+    try:
+        refs = load_all(paths)
+    except TaskFileError as exc:
+        _fail(f"Invalid task file: {exc}", as_json)
+
+    problems: list[str] = []
+
+    seen: dict[str, int] = {}
+    for ref in refs:
+        seen[ref.task.id] = seen.get(ref.task.id, 0) + 1
+    problems += [f"duplicate id: {task_id}" for task_id, n in sorted(seen.items()) if n > 1]
+
+    known = set(seen)
+    for ref in refs:
+        problems += [
+            f"{ref.task.id} depends on unknown task: {dep}"
+            for dep in ref.task.depends_on
+            if dep not in known
+        ]
+        if ref.task.id in ref.task.depends_on:
+            problems.append(f"{ref.task.id} depends on itself")
+
+    if as_json:
+        _emit({"ok": not problems, "tasks": len(refs), "problems": problems})
+        raise typer.Exit(1 if problems else 0)
+
+    if problems:
+        err_console.print(f"[red]{len(problems)} problem(s):[/red]")
+        for problem in problems:
+            err_console.print(f"  - {problem}")
+        raise typer.Exit(1)
+    console.print(f"[green]OK[/green] — {len(refs)} tasks valid")
+
+
+@app.command("stale")
+def cmd_stale(
+    days: int | None = typer.Option(None, "--days", help="Override the configured threshold."),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
+) -> None:
+    """Report tasks stuck in progress, including any with no ``updated`` date.
+
+    Exits non-zero when something is stale, so CI can catch abandoned work.
+    """
+    paths = _paths(as_json)
+    refs = _load(paths, as_json)
+    threshold = days if days is not None else paths.config.stale_after_days
+    stale = stale_in_progress(refs, days=threshold)
+
+    if as_json:
+        _emit(
+            {
+                "threshold_days": threshold,
+                "count": len(stale),
+                "stale": [ref.to_dict(paths) for ref in stale],
+            }
+        )
+        raise typer.Exit(1 if stale else 0)
+
+    if not stale:
+        console.print(f"[green]OK[/green] — nothing in progress longer than {threshold} days")
+        return
+    err_console.print(f"[yellow]{len(stale)} stale task(s) (threshold {threshold} days):[/yellow]")
+    for ref in stale:
+        err_console.print(
+            f"  - {ref.task.id} (updated: {ref.task.updated or 'never'}) — {ref.task.summary}"
+        )
+    raise typer.Exit(1)
+
+
+@app.command("sync")
+def cmd_sync(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would change, send nothing."),
+    active_only: bool = typer.Option(True, "--active-only/--all", help="Skip archived tasks."),
+) -> None:
+    """Push tasks to Jira Cloud. Local YAML stays the source of truth."""
+    from .integrations.jira import JiraClient, JiraCredentials, JiraNotConfigured, sync_task
+
+    paths = _paths()
+    refs = _load(paths, active_only=active_only)
+    if not refs:
+        console.print("[yellow]No tasks to sync.[/yellow]")
+        return
+
+    try:
+        credentials = JiraCredentials.from_env()
+        client = JiraClient(credentials)
+    except JiraNotConfigured as exc:
+        _fail(str(exc))
+
+    console.print(f"Syncing {len(refs)} task(s) to {credentials.base_url}")
+    if dry_run:
+        console.print("[yellow]Dry run — nothing is sent.[/yellow]")
+
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("ID")
+    table.add_column("Result")
+    failures = 0
+    for ref in refs:
+        try:
+            table.add_row(ref.task.id, sync_task(client, paths.config.jira, ref, dry_run=dry_run))
+        except Exception as exc:
+            failures += 1
+            table.add_row(ref.task.id, f"[red]{exc}[/red]")
+    console.print(table)
+    if failures:
+        err_console.print(f"[red]{failures} task(s) failed to sync.[/red]")
+        raise typer.Exit(1)
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via the console script
+    sys.exit(app())

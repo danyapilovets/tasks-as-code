@@ -1,0 +1,194 @@
+# tasks-as-code
+
+**A git-native backlog your AI coding agent cannot drift away from.**
+
+[![CI](https://github.com/danyapilovets/tasks-as-code/actions/workflows/ci.yml/badge.svg)](https://github.com/danyapilovets/tasks-as-code/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/tasks-as-code)](https://pypi.org/project/tasks-as-code/)
+[![Python](https://img.shields.io/pypi/pyversions/tasks-as-code)](https://pypi.org/project/tasks-as-code/)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#license)
+
+Tasks live as YAML files in your repository. The `tasc` CLI decides what to work
+on next — deterministically — and every read command speaks JSON, so an agent
+consumes exactly what you read.
+
+```console
+$ tasc next
+╭──────────────────────────────────────────────────────────────╮
+│ api-004 — Add retry to the payment webhook                   │
+│ epic: api   priority: High   file: tasks/active/api.yaml      │
+│                                                              │
+│ Acceptance criteria:                                         │
+│   - Retries 3 times with backoff                             │
+│   - Covered by a test                                        │
+╰──────────────────────────────────────────────────────────────╯
+
+Start it: tasc mark api-004 in_progress
+```
+
+## Why this exists
+
+An agent asked "what should I do next?" will happily invent an answer. Give it a
+file it must read instead, and the answer stops being a guess.
+
+- **Deterministic selection.** The same repository state always yields the same
+  next task: ordered by priority, then id, with unmet dependencies excluded.
+  Re-running the command cannot produce a different plan.
+- **No hidden state.** Plain YAML, reviewed in pull requests, versioned with the
+  code it describes. No database, no server, no account.
+- **JSON on every read command.** `--json` gives agents a stable contract rather
+  than scraped console output.
+- **Drift is detectable.** `tasc validate` rejects duplicate ids, unknown
+  dependencies and self-dependencies. `tasc stale` finds work that was started
+  and abandoned. Both exit non-zero, so CI can gate on them.
+- **Token-efficient.** Open work is grouped per epic in one file; closed work is
+  one file per task, read only on demand. An agent loads the backlog it needs,
+  not the whole history.
+
+## Install
+
+```sh
+pip install tasks-as-code          # core
+pip install "tasks-as-code[jira]"  # plus one-way Jira Cloud sync
+```
+
+Requires Python 3.10 or newer.
+
+## Quickstart
+
+```sh
+cd your-repo
+tasc init --name "Your Project"
+
+tasc new api --summary "Add retry to the payment webhook" -p High
+tasc next                      # what to work on
+tasc mark api-001 in_progress   # start it
+tasc done api-001 --note "Retries 3x with backoff"
+```
+
+That produces:
+
+```text
+tasks/
+├── active/
+│   └── api.yaml          # open work, grouped by epic
+├── archive/
+│   └── api-001.yaml      # one file per closed task
+├── done/
+│   └── 2026-Q3.md        # quarterly log of what shipped
+└── INDEX.md              # generated overview
+.tasc.yaml               # configuration
+```
+
+## Task format
+
+```yaml
+epic: api
+description: Public HTTP surface.
+tasks:
+  - id: api-001
+    summary: Add retry to the payment webhook
+    description: The provider returns 502 under load; retry with backoff.
+    type: Task              # Task | Story | Bug | Epic
+    priority: High          # Critical | High | Medium | Low
+    status: todo            # todo | in_progress | blocked | done
+    acceptance_criteria:
+      - Retries 3 times with exponential backoff
+      - Covered by a test
+    depends_on: [api-000]
+    updated: 2026-07-28
+```
+
+Ids are `<epic>-<number>`, lowercase. Statuses and priorities are normalised on
+read, so `To Do`, `to-do`, `WIP` and `closed` all resolve to the canonical value.
+Unknown fields are preserved, so you can attach your own (`owner`, `points`,
+links) without the tool dropping them.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `tasc init` | Create the task tree and `.tasc.yaml` |
+| `tasc next` | Show the next ready task, plus anything already in progress |
+| `tasc list` | List tasks, filterable by `--epic` and `--status` |
+| `tasc show <id>` | One task in full, including what blocks it |
+| `tasc new <epic>` | Create a task with an auto-numbered id |
+| `tasc mark <id> <status>` | Move to `todo`, `in_progress` or `blocked` |
+| `tasc done <id>` | Close it: archive the file, append to the quarterly log |
+| `tasc validate` | Check the schema and structure; non-zero on any problem |
+| `tasc stale` | Report abandoned in-progress work; non-zero if any |
+| `tasc reindex` | Regenerate `INDEX.md` |
+| `tasc sync` | Push to Jira Cloud (one-way) |
+
+Every read command accepts `--json`. Run `tasc --help` for all flags.
+
+## Using it with an AI agent
+
+Point your agent at the CLI instead of at your memory. Add this to
+`AGENTS.md`, `CLAUDE.md`, `.cursor/rules/` or your prompt of choice:
+
+```markdown
+Before writing code, run `tasc next --json` and work only on the task it
+returns. Mark it with `tasc mark <id> in_progress` before you start and
+`tasc done <id> --note "..."` when it is finished. Never invent a task id.
+```
+
+Because selection is deterministic, two agents — or the same agent on Monday and
+Thursday — reach the same conclusion from the same repository state. See
+[`docs/ai-agents.md`](docs/ai-agents.md) for the full JSON shapes.
+
+## Enforce it in CI
+
+```yaml
+- run: tasc validate   # fails on duplicate ids or unknown dependencies
+- run: tasc stale      # fails on work abandoned mid-flight
+```
+
+## Configuration
+
+`.tasc.yaml`, written by `tasc init`:
+
+```yaml
+project_name: Your Project
+tasks_dir: tasks
+stale_after_days: 7
+jira:
+  label_prefix: tasc
+  status_map:
+    todo: To Do
+    in_progress: In Progress
+    blocked: To Do
+    done: Done
+```
+
+Jira workflow status names differ per project and per language, which is why
+they are configuration rather than constants. See
+[`docs/jira-sync.md`](docs/jira-sync.md).
+
+## Related projects
+
+This is a crowded, healthy space. Pick the one that matches how you work:
+
+- [Backlog.md](https://github.com/MrLesk/Backlog.md) — Markdown tasks with a
+  terminal and web Kanban board, plus MCP integration.
+- [Taskrail](https://github.com/tessariq/taskrail) — Go CLI built around a single
+  authoritative state file and first-class verification steps.
+
+`tasks-as-code` is narrower on purpose: YAML tasks grouped by epic, deterministic
+selection, JSON output, and one-way Jira sync. No board, no server, no daemon.
+
+## Status
+
+Version 0.1.0, early but tested: 155 tests, 99% coverage, linted with ruff.
+The CLI surface and file format may still change before 1.0 — see
+[CHANGELOG.md](CHANGELOG.md).
+
+## Contributing
+
+Issues and pull requests are welcome. Start with
+[CONTRIBUTING.md](CONTRIBUTING.md); please also read the
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
+## License
+
+Dual-licensed under either [MIT](LICENSE-MIT) or
+[Apache-2.0](LICENSE-APACHE), at your option.

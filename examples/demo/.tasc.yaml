@@ -1,0 +1,10 @@
+project_name: Demo Shop
+tasks_dir: tasks
+stale_after_days: 7
+jira:
+  label_prefix: tasc
+  status_map:
+    todo: To Do
+    in_progress: In Progress
+    blocked: To Do
+    done: Done

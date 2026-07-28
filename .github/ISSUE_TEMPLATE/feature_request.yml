@@ -1,0 +1,40 @@
+name: Feature request
+description: Suggest a capability that does not exist yet.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that the tool makes hard today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like it to do
+      description: A command, flag or file shape, if you have one in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: Existing commands, a script, or another tool.
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Design constraints
+      description: >
+        This project keeps a deliberately narrow scope. Please confirm your idea
+        fits (see CONTRIBUTING.md).
+      options:
+        - label: It keeps next-task selection deterministic.
+          required: true
+        - label: It keeps YAML files the source of truth.
+          required: true
+        - label: It needs no server, database or background process.
+          required: true

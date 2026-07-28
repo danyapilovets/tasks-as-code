@@ -1,0 +1,49 @@
+name: Bug report
+description: Something behaves differently from what the docs say.
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Include the exact command and its output.
+      placeholder: |
+        $ tasc next --json
+        ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: A minimal task file is more useful than a description of one.
+      placeholder: |
+        1. tasc init
+        2. Put this in tasks/active/api.yaml: ...
+        3. Run tasc next
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `tasc --version`.
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Python and OS
+      placeholder: Python 3.12 on macOS 15
+    validations:
+      required: true

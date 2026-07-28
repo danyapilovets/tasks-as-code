@@ -1,0 +1,12 @@
+epic: api
+task:
+  id: api-001
+  summary: Accept payment webhooks
+  description: Receive provider callbacks and mark orders paid.
+  type: Task
+  priority: High
+  status: done
+  acceptance_criteria:
+  - Verifies the provider signature
+  - Rejects a replayed delivery id
+  updated: '2026-07-20'

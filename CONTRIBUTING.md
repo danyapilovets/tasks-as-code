@@ -1,0 +1,86 @@
+# Contributing
+
+Thanks for taking the time. Issues, bug reports and pull requests are all
+welcome.
+
+## Getting set up
+
+```sh
+git clone https://github.com/danyapilovets/tasks-as-code.git
+cd tasks-as-code
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+Verify the checkout:
+
+```sh
+pytest          # 155 tests, coverage gate at 95%
+ruff check .
+ruff format --check .
+```
+
+Optional, to catch problems before you push:
+
+```sh
+pre-commit install
+```
+
+## Making a change
+
+1. Open an issue first for anything beyond a small fix, so we agree on the
+   approach before you spend time on it.
+2. Branch from `main`.
+3. Add tests. Coverage is gated at 95% and CI will fail below it.
+4. Keep `ruff check .` and `ruff format --check .` clean.
+5. Update `README.md` and `docs/` when behaviour changes, and add a
+   `CHANGELOG.md` entry under `## Unreleased`.
+
+## What good tests look like here
+
+Tests document behaviour, so name them after the guarantee they protect:
+
+```python
+def test_unknown_dependency_blocks_rather_than_being_ignored():
+    """A typo in depends_on must not make a task look ready."""
+```
+
+Every test operates on a throwaway project in `tmp_path` (see the `project` and
+`in_project` fixtures in `tests/conftest.py`). Nothing touches the network: the
+Jira tests drive a stubbed session.
+
+## Design constraints
+
+Please keep these properties intact — they are the reason the tool is useful:
+
+- **Selection stays deterministic.** Same repository state, same next task. No
+  randomness, no wall-clock input, no ordering that depends on filesystem order.
+- **YAML stays the source of truth.** Integrations push outward; nothing writes
+  back into task files from an external system.
+- **`--json` stays stable.** It is a contract that agents parse. Add fields
+  freely; do not rename or remove them without a changelog entry.
+- **stdout stays parseable.** Human-facing errors go to stderr so `--json`
+  output is never polluted.
+- **No new required dependencies** without a clear reason. Optional features go
+  behind an extra, as Jira sync does.
+
+## Commit messages
+
+Short imperative subject, explaining why rather than what:
+
+```text
+Report unknown dependencies instead of ignoring them
+```
+
+## Releasing
+
+Maintainer only:
+
+1. Update `CHANGELOG.md` and the version in `pyproject.toml` and
+   `src/tasks_as_code/__init__.py`.
+2. Tag `vX.Y.Z` and push the tag. The release workflow publishes to PyPI.
+
+## Code of Conduct
+
+This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). By taking
+part you agree to uphold it.

@@ -1,0 +1,35 @@
+epic: api
+description: Public HTTP surface of the shop.
+tasks:
+- id: api-002
+  summary: Add retry with backoff to the payment webhook
+  description: The provider returns 502 under load, so single-attempt delivery loses orders.
+  type: Bug
+  priority: Critical
+  status: in_progress
+  acceptance_criteria:
+  - Retries three times with exponential backoff
+  - Gives up after the third attempt and records the failure
+  - Covered by a test that simulates a 502
+  depends_on:
+  - api-001
+  updated: '2026-07-27'
+- id: api-003
+  summary: Paginate the orders endpoint
+  description: Returning every order in one response times out for large accounts.
+  type: Task
+  priority: High
+  status: todo
+  acceptance_criteria:
+  - Accepts limit and cursor parameters
+  - Defaults to 50 items
+  updated: '2026-07-27'
+- id: api-004
+  summary: Publish an OpenAPI schema
+  type: Task
+  priority: Low
+  status: blocked
+  description: Waiting on the pagination shape to settle before the schema is worth writing.
+  depends_on:
+  - api-003
+  updated: '2026-07-27'
