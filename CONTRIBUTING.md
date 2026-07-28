@@ -77,8 +77,15 @@ Report unknown dependencies instead of ignoring them
 Maintainer only:
 
 1. Update `CHANGELOG.md` and the version in `pyproject.toml` and
-   `src/tasks_as_code/__init__.py`.
-2. Tag `vX.Y.Z` and push the tag. The release workflow publishes to PyPI.
+   `src/tasks_as_code/__init__.py`. A test fails if the two versions disagree.
+2. Update the pinned tag in the install instructions, in `docs/enforcement.md`
+   and in the `version` default of `.github/workflows/task-gate.yml`.
+3. Tag `vX.Y.Z` and push the tag. The release workflow runs the suite, builds
+   the artifacts and attaches them to a GitHub release.
+
+There is no package index in this process: the tag is the release. `pipx`, `pip`
+and pre-commit all install straight from it, which is also what lets someone pin
+to an exact commit.
 
 ## Code of Conduct
 

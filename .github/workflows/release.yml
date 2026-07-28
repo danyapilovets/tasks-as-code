@@ -26,28 +26,10 @@ jobs:
           name: dist
           path: dist/
 
-  publish:
-    needs: build
-    # Off until a PyPI trusted publisher exists for this project: set the
-    # repository variable PUBLISH_TO_PYPI to 'true'. Without the switch, a tag
-    # push fails on a step that is not the release itself.
-    if: vars.PUBLISH_TO_PYPI == 'true'
-    runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      # Trusted publishing: no long-lived PyPI token stored in the repository.
-      id-token: write
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: dist
-          path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
-
   github-release:
-    # Deliberately parallel to publish rather than after it. The git tag is what
-    # 'pipx install git+...' and pre-commit resolve, so the release must not
-    # depend on PyPI accepting the upload.
+    # No package index step: the tag is the release. 'pipx install git+...' and
+    # pre-commit both resolve the tag, and the built artifacts are attached here
+    # for anyone who would rather download a wheel than clone.
     needs: build
     runs-on: ubuntu-latest
     permissions:

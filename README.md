@@ -3,8 +3,8 @@
 **A git-native backlog your AI coding agent cannot drift away from.**
 
 [![CI](https://github.com/danyapilovets/tasks-as-code/actions/workflows/ci.yml/badge.svg)](https://github.com/danyapilovets/tasks-as-code/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/tasks-as-code)](https://pypi.org/project/tasks-as-code/)
-[![Python](https://img.shields.io/pypi/pyversions/tasks-as-code)](https://pypi.org/project/tasks-as-code/)
+[![Release](https://img.shields.io/github/v/release/danyapilovets/tasks-as-code)](https://github.com/danyapilovets/tasks-as-code/releases)
+[![Python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.13-blue)](pyproject.toml)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#license)
 
 Tasks live as YAML files in your repository. The `tasc` CLI decides what to work
@@ -49,13 +49,22 @@ file it must read instead, and the answer stops being a guess.
 
 ## Install
 
+Installed from a git tag, not from a package index:
+
 ```sh
-pipx install tasks-as-code            # recommended: isolated, on your PATH
-pipx install "tasks-as-code[jira]"    # plus one-way Jira Cloud sync
+pipx install "git+https://github.com/danyapilovets/tasks-as-code@v1.0.0"
+
+# plus one-way Jira Cloud sync
+pipx install "tasks-as-code[jira] @ git+https://github.com/danyapilovets/tasks-as-code@v1.0.0"
 ```
 
-`pip install tasks-as-code` works too, if you would rather have it in the current
-environment. Requires Python 3.10 or newer.
+`pipx` keeps it in its own environment and on your `PATH`; `pip install` with the
+same argument works if you would rather have it in the current environment.
+Upgrade by installing a newer tag. Requires Python 3.10 or newer.
+
+This is not published to PyPI. The tag is the release: it is what `pipx`,
+`pip` and pre-commit all resolve, and it pins you to a specific commit rather
+than to whatever a package index served that day.
 
 ## Quickstart
 

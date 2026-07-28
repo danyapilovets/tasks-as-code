@@ -7,6 +7,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- Distribution is the git tag rather than a package index. `pipx`, `pip` and
+  pre-commit all install from a tag, which pins to an exact commit; install
+  instructions, the Jira extra hint and the release workflow say so. Nothing is
+  published to PyPI, so the publish job is gone rather than sitting disabled.
+
 ## [1.0.0] — 2026-07-28
 
 First public release. Released at 1.0 rather than 0.x deliberately: the CLI

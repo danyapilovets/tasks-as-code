@@ -5,7 +5,7 @@ files. Credentials come from the environment, workflow status names from
 ``.tasc.yaml`` — Jira status names differ per project and per language, so they
 cannot be constants.
 
-Requires the optional extra: ``pip install "tasks-as-code[jira]"``.
+Requires the optional ``jira`` extra; see the install section of the README.
 """
 
 from __future__ import annotations
@@ -79,7 +79,9 @@ class JiraClient:
             import requests
         except ModuleNotFoundError as exc:  # pragma: no cover - depends on install extras
             raise JiraNotConfigured(
-                'Jira sync needs the optional extra: pip install "tasks-as-code[jira]"'
+                "Jira sync needs the optional 'jira' extra. Reinstall with it:\n"
+                '  pipx install "tasks-as-code[jira] @ '
+                'git+https://github.com/danyapilovets/tasks-as-code@v1.0.0"'
             ) from exc
 
         self.credentials = credentials
