@@ -46,7 +46,10 @@ Changelog = "https://github.com/danyapilovets/tasks-as-code/blob/main/CHANGELOG.
 tasc = "tasks_as_code.cli:app"
 
 [build-system]
-requires = ["setuptools>=68"]
+# 77 is the first release that understands the SPDX `license` expression and
+# `license-files` above (PEP 639). An older setuptools would fail on them, so the
+# declared minimum has to match what the metadata actually needs.
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]

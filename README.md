@@ -50,11 +50,12 @@ file it must read instead, and the answer stops being a guess.
 ## Install
 
 ```sh
-pip install tasks-as-code          # core
-pip install "tasks-as-code[jira]"  # plus one-way Jira Cloud sync
+pipx install tasks-as-code            # recommended: isolated, on your PATH
+pipx install "tasks-as-code[jira]"    # plus one-way Jira Cloud sync
 ```
 
-Requires Python 3.10 or newer.
+`pip install tasks-as-code` works too, if you would rather have it in the current
+environment. Requires Python 3.10 or newer.
 
 ## Quickstart
 
@@ -221,7 +222,8 @@ selection, JSON output, and one-way Jira sync. No board, no server, no daemon.
 
 ## Status
 
-Version 0.1.0, early but tested: 202 tests, 99% coverage, linted with ruff.
+Version 0.1.0, early but tested: 99% coverage, linted with ruff, exercised on
+Linux, macOS and Windows across Python 3.10 to 3.13.
 The CLI surface and file format may still change before 1.0 — see
 [CHANGELOG.md](CHANGELOG.md).
 
