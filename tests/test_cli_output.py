@@ -29,6 +29,7 @@ def test_module_entry_point_works() -> None:
         [sys.executable, "-m", "tasks_as_code", "--version"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=True,
     )
     assert __version__ in completed.stdout

@@ -49,9 +49,14 @@ jobs:
       - run: pip install -e ".[dev]"
       - name: Run tests
         shell: bash
+        env:
+          # Turn any read or write that omits an encoding into a failure. The
+          # platform default is cp1252 on Windows, which mangles non-latin task
+          # text — a bug that otherwise only surfaces on one runner.
+          PYTHONWARNDEFAULTENCODING: "1"
         run: |
           set -o pipefail
-          if ! pytest -q --tb=short 2>&1 | tee pytest.log; then
+          if ! python -X warn_default_encoding -m pytest -q --tb=short -W error::EncodingWarning 2>&1 | tee pytest.log; then
             # Failures become annotations, which show up on the pull request diff
             # and are readable without downloading the whole log.
             grep -E '^(FAILED|ERROR|E   )' pytest.log | head -30 | while IFS= read -r line; do

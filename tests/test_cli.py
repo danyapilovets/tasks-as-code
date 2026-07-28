@@ -62,7 +62,7 @@ def test_init_creates_the_tree_config_and_index(tmp_path: Path, monkeypatch) -> 
     assert (tmp_path / CONFIG_FILENAME).is_file()
     for folder in ("active", "archive", "done"):
         assert (tmp_path / "tasks" / folder).is_dir()
-    assert "Acme — task index" in (tmp_path / "tasks" / "INDEX.md").read_text()
+    assert "Acme — task index" in (tmp_path / "tasks" / "INDEX.md").read_text(encoding="utf-8")
 
 
 def test_init_refuses_to_overwrite_without_force(tmp_path: Path, monkeypatch) -> None:
@@ -181,7 +181,7 @@ def test_validate_exits_non_zero_so_it_can_gate_ci(in_project: Paths, add_epic) 
 
 
 def test_validate_names_a_broken_file(in_project: Paths) -> None:
-    (in_project.active / "broken.yaml").write_text("tasks: [oops\n")
+    (in_project.active / "broken.yaml").write_text("tasks: [oops\n", encoding="utf-8")
     code, out = run("validate")
     assert code == 1
     assert "broken.yaml" in out
@@ -221,7 +221,7 @@ def test_reindex_writes_the_index_and_reports_counts(in_project: Paths, add_epic
 def test_write_commands_keep_the_index_current(in_project: Paths) -> None:
     """A stale index is worse than none: an agent would act on old state."""
     run("new", "api", "--summary", "Fresh work")
-    assert "Fresh work" in in_project.index_md.read_text()
+    assert "Fresh work" in in_project.index_md.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("command", ["next", "list", "reindex", "stale"])

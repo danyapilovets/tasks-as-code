@@ -155,9 +155,9 @@ def test_create_can_assign_an_owner(project: Paths) -> None:
 def test_owner_survives_a_round_trip_through_yaml(project: Paths, add_epic) -> None:
     path = add_epic("api", [make_task("api-001", owner="agent-a"), make_task("api-002")])
 
-    assert "owner: agent-a" in path.read_text()
+    assert "owner: agent-a" in path.read_text(encoding="utf-8")
     # Absent rather than 'owner: null' for unassigned tasks, to keep files clean.
-    assert path.read_text().count("owner:") == 1
+    assert path.read_text(encoding="utf-8").count("owner:") == 1
 
 
 def test_done_dir_can_live_outside_the_tasks_tree(tmp_path: Path) -> None:

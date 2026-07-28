@@ -114,7 +114,7 @@ def test_stale_names_the_owner_to_chase(in_project: Paths, add_epic) -> None:
 def test_index_shows_owners(in_project: Paths, add_epic) -> None:
     add_epic("api", [make_task("api-001", owner="agent-a")])
     run("reindex")
-    assert "agent-a" in in_project.index_md.read_text()
+    assert "agent-a" in in_project.index_md.read_text(encoding="utf-8")
 
 
 def test_init_gitignores_the_generated_index(tmp_path: Path, monkeypatch) -> None:
@@ -122,16 +122,16 @@ def test_init_gitignores_the_generated_index(tmp_path: Path, monkeypatch) -> Non
     monkeypatch.chdir(tmp_path)
     code, out = run("init")
     assert code == 0
-    assert "tasks/INDEX.md" in (tmp_path / ".gitignore").read_text()
+    assert "tasks/INDEX.md" in (tmp_path / ".gitignore").read_text(encoding="utf-8")
     assert ".gitignore" in out
 
 
 def test_init_appends_to_an_existing_gitignore(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
-    (tmp_path / ".gitignore").write_text("__pycache__/")  # no trailing newline
+    (tmp_path / ".gitignore").write_text("__pycache__/", encoding="utf-8")  # no trailing newline
     run("init")
 
-    lines = (tmp_path / ".gitignore").read_text().splitlines()
+    lines = (tmp_path / ".gitignore").read_text(encoding="utf-8").splitlines()
     assert "__pycache__/" in lines
     assert "tasks/INDEX.md" in lines
 
@@ -140,7 +140,7 @@ def test_init_does_not_duplicate_the_ignore_entry(tmp_path: Path, monkeypatch) -
     monkeypatch.chdir(tmp_path)
     run("init")
     run("init", "--force")
-    assert (tmp_path / ".gitignore").read_text().count("tasks/INDEX.md") == 1
+    assert (tmp_path / ".gitignore").read_text(encoding="utf-8").count("tasks/INDEX.md") == 1
 
 
 def test_init_track_index_leaves_gitignore_alone(tmp_path: Path, monkeypatch) -> None:
@@ -152,7 +152,7 @@ def test_init_track_index_leaves_gitignore_alone(tmp_path: Path, monkeypatch) ->
 def test_init_ignore_entry_follows_a_custom_tasks_dir(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     run("init", "--tasks-dir", "work")
-    assert "work/INDEX.md" in (tmp_path / ".gitignore").read_text()
+    assert "work/INDEX.md" in (tmp_path / ".gitignore").read_text(encoding="utf-8")
 
 
 def test_init_writes_a_custom_done_dir_into_the_config(tmp_path: Path, monkeypatch) -> None:

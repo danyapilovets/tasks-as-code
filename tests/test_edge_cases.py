@@ -23,29 +23,29 @@ def test_non_list_criteria_reaches_the_type_error() -> None:
 
 
 def test_empty_active_file_is_skipped(project: Paths) -> None:
-    (project.active / "blank.yaml").write_text("")
+    (project.active / "blank.yaml").write_text("", encoding="utf-8")
     assert load_active(project) == []
 
 
 def test_empty_archive_file_is_skipped(project: Paths) -> None:
-    (project.archive / "blank.yaml").write_text("")
+    (project.archive / "blank.yaml").write_text("", encoding="utf-8")
     assert load_archive(project) == []
 
 
 def test_invalid_archive_yaml_names_the_file(project: Paths) -> None:
-    (project.archive / "broken.yaml").write_text("task: [oops\n")
+    (project.archive / "broken.yaml").write_text("task: [oops\n", encoding="utf-8")
     with pytest.raises(TaskFileError, match=r"broken\.yaml"):
         load_archive(project)
 
 
 def test_archive_schema_violation_names_the_file(project: Paths) -> None:
-    (project.archive / "bad.yaml").write_text("task:\n  id: NOPE\n  summary: x\n")
+    (project.archive / "bad.yaml").write_text("task:\n  id: NOPE\n  summary: x\n", encoding="utf-8")
     with pytest.raises(TaskFileError, match=r"bad\.yaml"):
         load_archive(project)
 
 
 def test_archive_epic_falls_back_to_the_task_field(project: Paths) -> None:
     (project.archive / "x-001.yaml").write_text(
-        "task:\n  id: x-001\n  summary: s\n  status: done\n  epic: custom\n"
+        "task:\n  id: x-001\n  summary: s\n  status: done\n  epic: custom\n", encoding="utf-8"
     )
     assert load_archive(project)[0].epic == "custom"

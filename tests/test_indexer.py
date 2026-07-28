@@ -87,4 +87,4 @@ def test_write_index_creates_the_file_and_reports_the_date(project: Paths, add_e
     add_epic("api", [make_task("api-001")])
     path = write_index(project, load_all(project))
     assert path == project.index_md
-    assert date.today().isoformat() in path.read_text()
+    assert date.today().isoformat() in path.read_text(encoding="utf-8")

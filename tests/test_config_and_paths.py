@@ -33,21 +33,21 @@ def test_config_round_trips_through_yaml(tmp_path: Path) -> None:
 def test_unknown_config_keys_are_rejected(tmp_path: Path) -> None:
     """A silently ignored typo would look like the setting had no effect."""
     path = tmp_path / CONFIG_FILENAME
-    path.write_text(yaml.safe_dump({"projectname": "typo"}))
+    path.write_text(yaml.safe_dump({"projectname": "typo"}), encoding="utf-8")
     with pytest.raises(Exception, match="projectname"):
         Config.load(path)
 
 
 def test_non_mapping_config_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / CONFIG_FILENAME
-    path.write_text(yaml.safe_dump(["not", "a", "mapping"]))
+    path.write_text(yaml.safe_dump(["not", "a", "mapping"]), encoding="utf-8")
     with pytest.raises(ValueError, match="YAML mapping"):
         Config.load(path)
 
 
 def test_zero_stale_days_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / CONFIG_FILENAME
-    path.write_text(yaml.safe_dump({"stale_after_days": 0}))
+    path.write_text(yaml.safe_dump({"stale_after_days": 0}), encoding="utf-8")
     with pytest.raises(Exception, match="stale_after_days"):
         Config.load(path)
 
@@ -61,7 +61,7 @@ def test_custom_tasks_dir_moves_every_path(tmp_path: Path) -> None:
 
 
 def test_find_root_locates_the_config_from_a_subdirectory(tmp_path: Path) -> None:
-    (tmp_path / CONFIG_FILENAME).write_text("project_name: Deep\n")
+    (tmp_path / CONFIG_FILENAME).write_text("project_name: Deep\n", encoding="utf-8")
     nested = tmp_path / "a" / "b" / "c"
     nested.mkdir(parents=True)
     assert find_root(nested) == tmp_path
@@ -74,7 +74,7 @@ def test_find_root_falls_back_to_an_uninitialised_tasks_tree(tmp_path: Path) -> 
 
 
 def test_config_wins_over_a_nested_tasks_tree(tmp_path: Path) -> None:
-    (tmp_path / CONFIG_FILENAME).write_text("project_name: Root\n")
+    (tmp_path / CONFIG_FILENAME).write_text("project_name: Root\n", encoding="utf-8")
     nested = tmp_path / "sub"
     (nested / "tasks" / "active").mkdir(parents=True)
     assert find_root(nested) == tmp_path

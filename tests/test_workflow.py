@@ -101,7 +101,7 @@ def test_set_status_persists_and_stamps_the_date(project: Paths, add_epic) -> No
 def test_set_status_preserves_the_epic_header(project: Paths, add_epic) -> None:
     path = add_epic("api", [make_task("api-001")], description="Keep me")
     set_status(project, "api-001", "blocked")
-    raw = yaml.safe_load(path.read_text())
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert raw["description"] == "Keep me"
     assert raw["epic"] == "api"
 
@@ -126,12 +126,12 @@ def test_archive_moves_the_task_and_writes_a_log(project: Paths, add_epic) -> No
 
     assert archive_path.is_file()
     assert [ref.id for ref in load_archive(project)] == ["api-001"]
-    assert yaml.safe_load(archive_path.read_text())["task"]["status"] == "done"
+    assert yaml.safe_load(archive_path.read_text(encoding="utf-8"))["task"]["status"] == "done"
 
-    remaining = [task["id"] for task in yaml.safe_load(path.read_text())["tasks"]]
+    remaining = [task["id"] for task in yaml.safe_load(path.read_text(encoding="utf-8"))["tasks"]]
     assert remaining == ["api-002"]
 
-    log = log_path.read_text()
+    log = log_path.read_text(encoding="utf-8")
     assert "api-001" in log
     assert "Shipped it" in log
     assert log_path.name == f"{quarter_label()}.md"
@@ -140,14 +140,14 @@ def test_archive_moves_the_task_and_writes_a_log(project: Paths, add_epic) -> No
 def test_archive_without_a_note_still_logs_the_heading(project: Paths, add_epic) -> None:
     add_epic("api", [make_task("api-001")])
     _, log_path = archive(project, "api-001")
-    assert "api-001" in log_path.read_text()
+    assert "api-001" in log_path.read_text(encoding="utf-8")
 
 
 def test_archive_appends_to_an_existing_log(project: Paths, add_epic) -> None:
     add_epic("api", [make_task("api-001"), make_task("api-002")])
     archive(project, "api-001", note="first")
     _, log_path = archive(project, "api-002", note="second")
-    body = log_path.read_text()
+    body = log_path.read_text(encoding="utf-8")
     assert body.count("## ") == 2
     assert "first" in body and "second" in body
 
@@ -178,7 +178,7 @@ def test_create_starts_a_new_epic_file(project: Paths) -> None:
 def test_create_preserves_the_epic_description(project: Paths, add_epic) -> None:
     path = add_epic("api", [make_task("api-001")], description="Backend work")
     create(project, epic_prefix="api", summary="Another")
-    assert yaml.safe_load(path.read_text())["description"] == "Backend work"
+    assert yaml.safe_load(path.read_text(encoding="utf-8"))["description"] == "Backend work"
 
 
 def test_next_id_ignores_non_numeric_suffixes(project: Paths, add_epic) -> None:
