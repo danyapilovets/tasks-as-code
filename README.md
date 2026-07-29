@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/danyapilovets/tasks-as-code/actions/workflows/ci.yml/badge.svg)](https://github.com/danyapilovets/tasks-as-code/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/danyapilovets/tasks-as-code)](https://github.com/danyapilovets/tasks-as-code/releases)
-[![Python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.13-blue)](pyproject.toml)
+[![Python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.14-blue)](pyproject.toml)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#license)
 
 Tasks live as YAML files in your repository. The `tasc` CLI decides what to work
@@ -304,7 +304,7 @@ selection, JSON output, and one-way Jira sync. No board, no server, no daemon.
 ## Status
 
 Version 1.0.0: 99% coverage, linted with ruff, exercised on Linux, macOS and
-Windows across Python 3.10 to 3.13.
+Windows across Python 3.10 to 3.14.
 
 Three things are covered by [semantic versioning](https://semver.org), because
 they are what you and your agents build against:

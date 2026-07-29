@@ -34,7 +34,7 @@ jobs:
         # Windows and macOS catch path-separator and line-ending regressions in
         # the YAML round trip; the full Python range catches syntax drift.
         os: [ubuntu-latest]
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         include:
           - os: macos-latest
             python-version: "3.12"
