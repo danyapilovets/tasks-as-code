@@ -55,7 +55,7 @@ with your backlog:
 
 ```
 $ tasc sync --check
-Checking 34 task(s) against AI on https://nova-pay.atlassian.net
+Checking 34 task(s) against ABC on https://your-domain.atlassian.net
 note    'Task' has no priority on its create screen; those values will not be sent.
 blocker status_map maps 'in_progress' to 'Started', which is not a status in this project
 ```
