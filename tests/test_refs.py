@@ -77,26 +77,63 @@ def test_unknown_prefixes_are_not_task_ids(refs: list) -> None:
     assert result.invented == []
 
 
-def test_a_closed_task_alone_is_rejected(refs: list) -> None:
-    result = check_text("api-001: more work", refs)
-    assert not result.ok
-    assert result.wrong_status == {"api-001": "done"}
-    assert "in_progress" in result.problems()[0]
+def test_a_closed_task_is_a_valid_reference(refs: list) -> None:
+    """The commit that records a completion has to be able to name it, and
+    `tasc done` has already closed the task by the time it is written."""
+    result = check_text("api-001: retry on timeout", refs)
+    assert result.ok
+    assert result.referenced == ["api-001"]
+    assert result.wrong_status == {}
 
 
 def test_a_closed_task_beside_an_open_one_is_fine(refs: list) -> None:
     """ "Follows up on api-001" is a normal thing to write and must not block."""
     result = check_text("api-003: follows up on api-001", refs)
     assert result.ok
-    assert result.referenced == ["api-003"]
+    assert result.referenced == ["api-003", "api-001"]
+
+
+def test_the_example_prefers_open_work(refs: list) -> None:
+    """Any status is a valid reference, but advice should point at live work."""
+    assert "api-002" in check_text("nothing here", refs).problems()[0]
+
+
+def test_the_example_falls_back_to_a_closed_task(project: Paths, add_epic) -> None:
+    add_epic("api", [make_task("api-001", status="done")])
+    refs = load_all(project)
+    assert "api-001" in check_text("nothing here", refs).problems()[0]
 
 
 def test_require_status_rejects_a_task_not_started(refs: list) -> None:
     result = check_text("api-003: work", refs, require_status="in_progress")
     assert not result.ok
     assert result.wrong_status == {"api-003": "todo"}
+    assert result.required == ["in_progress"]
     result = check_text("api-002: work", refs, require_status="in_progress")
     assert result.ok
+
+
+def test_require_status_accepts_a_list(refs: list) -> None:
+    statuses = ["in_progress", "done"]
+    assert check_text("api-001: work", refs, require_status=statuses).ok
+    assert check_text("api-002: work", refs, require_status=statuses).ok
+    assert not check_text("api-003: work", refs, require_status=statuses).ok
+
+
+def test_a_failure_names_the_rule_it_broke(refs: list) -> None:
+    problem = check_text("api-003", refs, require_status=["in_progress", "done"]).problems()[0]
+    assert problem.startswith("api-003 is 'todo', and a reference must be 'in_progress' or 'done'")
+    assert "tasc mark api-003 in_progress" in problem
+
+
+def test_a_requirement_without_in_progress_offers_no_mark_hint(refs: list) -> None:
+    problem = check_text("api-003", refs, require_status="done").problems()[0]
+    assert problem == "api-003 is 'todo', and a reference must be 'done'"
+
+
+def test_an_empty_requirement_list_checks_no_status(refs: list) -> None:
+    assert check_text("api-001: work", refs, require_status=[]).ok
+    assert check_text("api-001: work", refs, require_status=[""]).ok
 
 
 def test_a_marker_skips_the_check(refs: list) -> None:

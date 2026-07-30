@@ -48,9 +48,10 @@ class RefSettings(BaseModel):
     #: Text containing one of these skips the check. An escape hatch is what keeps
     #: people from disabling the hook altogether the first time it blocks them.
     skip_markers: list[str] = Field(default_factory=lambda: ["[skip-task]"])
-    #: Require the referenced task to be in this status, e.g. ``in_progress``.
-    #: ``None`` accepts any status except ``done``.
-    require_status: str | None = None
+    #: Require the referenced task to be in one of these statuses, e.g.
+    #: ``in_progress`` or ``[in_progress, done]``. ``None`` accepts any status,
+    #: which is what lets the commit that closes a task name it.
+    require_status: str | list[str] | None = None
 
 
 class Config(BaseModel):

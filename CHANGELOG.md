@@ -9,6 +9,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- A commit can reference the task it closes. `tasc done` archives the task, and
+  `check-ref` then refused the id as `done` — so the one commit that records a
+  completion could not name what it completed, and the workflow the tool enforces
+  was only expressible through `[skip-task]`. Status is now checked only when
+  `require_status` asks for it, which is also what `require_status: null` always
+  claimed. Telling the closing commit from a later one citing the same task would
+  mean reading the diff, and a hook sees the staged diff while CI sees a finished
+  commit — the two layers would disagree about the same change, so status is
+  compared and nothing else.
 - `tasc sync` no longer fails on team-managed Jira projects. It read the create
   screen for the issue type and drops fields the project does not have, instead of
   always sending `priority` — which a team-managed project has no field for,
@@ -26,6 +35,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- `refs.require_status` accepts a list, and `--require-status` is repeatable, so
+  `[in_progress, done]` expresses the strict rule that still permits the commit
+  closing a task. The `require-status` input of the task gate takes several
+  statuses for the same reason. A failure now names the rule it broke rather than
+  assuming `in_progress` was wanted, and `--json` carries the `required` list.
 - `tasc sync --check` compares the backlog against the project before anything is
   sent: issue types, the priorities of its scheme, the statuses of its workflow
   and the fields on its create screen. A mismatch is one line up front instead of

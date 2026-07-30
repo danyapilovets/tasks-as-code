@@ -128,7 +128,7 @@ done_dir: null               # quarterly logs; defaults to <tasks_dir>/done
 stale_after_days: 7          # threshold for `tasc stale`
 refs:                        # rules for `tasc check-ref`
   skip_markers: ["[skip-task]"]   # a message containing one of these is skipped
-  require_status: null            # e.g. in_progress; null accepts any open status
+  require_status: null            # e.g. [in_progress, done]; null accepts any status
 jira:
   label_prefix: tasc         # label linking an issue to a task id
   status_map:                # local status -> Jira status to transition into

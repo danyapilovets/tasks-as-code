@@ -38,8 +38,10 @@ Three behaviours keep that strictness from becoming noise:
   ignored, because no epic is called `utf`. In a repository that *does* have a
   `be` epic, `be-999` is flagged — same rule, opposite outcome, which is what
   you want.
-- **A closed task alongside an open one is fine.** "api-003: follows up on
-  api-001" passes. Only a message whose *sole* reference is closed fails.
+- **Any status is a valid reference, `done` included.** The commit that records a
+  completion has to be able to name what it completed, and by the time it is
+  written `tasc done` has already closed the task. See
+  [Demanding a status](#demanding-a-status) to check status anyway.
 - **Commits git writes itself are exempt.** Merges, reverts and `fixup!` pass
   untouched. Blocking them is how a team learns to type `--no-verify` by reflex,
   and a habit of bypassing the hook costs more than the commits it caught.
@@ -52,6 +54,7 @@ $ tasc check-ref --json "api-002 and api-404"
   "invented": ["api-404"],
   "ok": false,
   "referenced": ["api-002"],
+  "required": [],
   "skipped": null,
   "wrong_status": {}
 }
@@ -97,7 +100,7 @@ Until you do, the workflow reports and nothing is blocked.
 | Input | Default | Effect |
 |---|---|---|
 | `version` | the workflow's own tag | Which version of the tool to install. `main` to track latest. |
-| `require-status` | — | Demand the task be in this status, e.g. `in_progress`. |
+| `require-status` | — | Demand the task be in one of these statuses, space-separated, e.g. `in_progress done`. |
 | `check-commits` | `false` | Require a reference in every commit, not only the title. |
 
 It checks the **pull request title** by default, because on a squash merge that
@@ -155,25 +158,31 @@ refs:
 Setting `skip_markers: []` removes the hatch. Then `--no-verify` becomes the
 only way out, which is worse: it leaves no trace in the history.
 
-## Demanding that work was started
+## Demanding a status
 
-By default any open status passes. Stricter, the task must be in progress:
+By default any status passes. Stricter, the task must be in progress — or closed,
+so that the commit which finishes it is still expressible:
 
 ```yaml
 refs:
-  require_status: in_progress
+  require_status: [in_progress, done]
 ```
 
 ```console
 $ tasc check-ref "api-003: work"
 No valid task reference:
-  - api-003 is 'todo'; run 'tasc mark api-003 in_progress' first
+  - api-003 is 'todo', and a reference must be 'in_progress' or 'done'; run 'tasc mark api-003 in_progress' first
 ```
 
 This closes a real gap — a commit against a task nobody ever started means the
 backlog does not reflect the world — at the price of one extra command before
 the first commit. Worth it once the basic gate is habitual; a poor place to
 start.
+
+A bare `require_status: in_progress` is also accepted and is stricter still, but
+be deliberate about it: `tasc done` closes the task before the commit that
+reports it, so the closing commit then needs `[skip-task]` every time. Listing
+`done` alongside is what keeps the hatch for the cases it was meant for.
 
 ## Rolling it out on a live repository
 
@@ -222,6 +231,12 @@ count.
 - **It does not stop a `todo` task being invented and committed in the same pull
   request.** That is legitimate — most work starts that way — and the diff shows
   it, because the task is a file.
+- **It does not know whether a reference is the commit that closed the task or a
+  later one citing it.** Telling those apart means reading the diff, and the diff
+  a hook sees (staged) is not the one CI sees (a commit already made), so the two
+  layers would disagree about the same change. A rule that passes locally and
+  fails in CI is worse than one that is merely permissive, so status is compared
+  and nothing else.
 - **It does not work on the server side.** These are checks in CI, not a
   pre-receive hook. Someone with the right to push to a protected branch, or to
   disable a status check, can bypass it. That is a permissions question, not

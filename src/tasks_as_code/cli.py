@@ -573,8 +573,8 @@ def cmd_check_ref(
     file: Path | None = typer.Option(
         None, "--file", "-f", help="Read the text from a file, as commit-msg hooks pass it."
     ),
-    require_status: str | None = typer.Option(
-        None, "--require-status", help="Demand this status, e.g. in_progress."
+    require_status: list[str] = typer.Option(
+        [], "--require-status", help="Demand one of these statuses. Repeatable."
     ),
     as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:

@@ -93,6 +93,7 @@ def test_json_output_carries_the_detail(backlog: Paths) -> None:
         "referenced": ["api-002"],
         "invented": ["api-404"],
         "wrong_status": {},
+        "required": [],
         "skipped": None,
     }
 
@@ -115,6 +116,33 @@ def test_require_status_can_be_configured(backlog: Paths) -> None:
     config.dump(backlog.config_file)
     assert run("check-ref", "api-003: work")[0] == 1
     assert run("check-ref", "api-002: work")[0] == 0
+
+
+def test_a_commit_may_reference_the_task_it_closes(backlog: Paths) -> None:
+    """`tasc done` then commit is the workflow; the hook must not forbid it."""
+    assert run("done", "api-002")[0] == 0
+    code, out = run("check-ref", "api-002: retry on timeout")
+    assert code == 0
+    assert "api-002" in out
+
+
+def test_several_statuses_can_be_required(backlog: Paths) -> None:
+    """The strict setting that still lets a task be closed and committed."""
+    config = Config.load(backlog.config_file)
+    config.refs.require_status = ["in_progress", "done"]
+    config.dump(backlog.config_file)
+    assert run("check-ref", "api-002: work")[0] == 0
+    assert run("check-ref", "api-001: work")[0] == 0
+
+    code, out = run("check-ref", "api-003: work")
+    assert code == 1
+    assert "api-003 is 'todo', and a reference must be 'in_progress' or 'done'" in out
+
+
+def test_repeated_require_status_flags_accumulate(backlog: Paths) -> None:
+    args = ("--require-status", "in_progress", "--require-status", "done")
+    assert run("check-ref", *args, "api-001: work")[0] == 0
+    assert run("check-ref", *args, "api-003: work")[0] == 1
 
 
 def test_configured_markers_replace_the_default(backlog: Paths) -> None:

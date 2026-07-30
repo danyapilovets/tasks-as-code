@@ -26,7 +26,10 @@ on:
         type: string
         default: "3.12"
       require-status:
-        description: Demand the referenced task be in this status, e.g. in_progress.
+        description: >
+          Demand the referenced task be in one of these statuses, space-separated.
+          Use "in_progress done" rather than "in_progress": tasc done closes a task
+          before the commit reporting it is written.
         type: string
         default: ""
       check-commits:
@@ -65,11 +68,13 @@ jobs:
           REQUIRE: ${{ inputs.require-status }}
         run: |
           set -euo pipefail
-          if [ -n "$REQUIRE" ]; then
-            tasc check-ref --require-status "$REQUIRE" "$TITLE"
-          else
-            tasc check-ref "$TITLE"
-          fi
+          # Includes the subcommand so the array is never empty: expanding an
+          # empty one under 'set -u' is an error on bash 3.
+          args=(check-ref)
+          # Splitting is the point here: the input carries several statuses.
+          # shellcheck disable=SC2086
+          for status in $REQUIRE; do args+=(--require-status "$status"); done
+          tasc "${args[@]}" "$TITLE"
 
       - name: Every commit references a real task
         if: inputs.check-commits && github.event_name == 'pull_request'
@@ -82,7 +87,8 @@ jobs:
           # Includes the subcommand so the array is never empty: expanding an
           # empty one under 'set -u' is an error on bash 3.
           args=(check-ref)
-          [ -n "$REQUIRE" ] && args+=(--require-status "$REQUIRE")
+          # shellcheck disable=SC2086
+          for status in $REQUIRE; do args+=(--require-status "$status"); done
           failed=0
           # Read the shas on fd 3: on stdin, tasc would consume the list itself.
           # The message goes in as an argument for the same reason.

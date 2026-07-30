@@ -230,8 +230,8 @@ jobs:
 It validates the task files and checks the pull request title — the text that
 becomes the commit on a squash merge. Make it a required status check and the
 rule holds for everyone, including agents. Add `with: check-commits: true` to
-demand a reference in every commit, or `with: require-status: in_progress` to
-demand the task was actually started.
+demand a reference in every commit, or `with: require-status: in_progress done`
+to demand the task was actually started.
 
 If you use pre-commit, this repository ships the hooks:
 
@@ -268,7 +268,7 @@ done_dir: null          # defaults to <tasks_dir>/done
 stale_after_days: 7
 refs:
   skip_markers: ["[skip-task]"]   # message containing this bypasses check-ref
-  require_status: null            # e.g. in_progress, to demand work was started
+  require_status: null            # e.g. [in_progress, done]; null accepts any status
 jira:
   label_prefix: tasc
   status_map:
