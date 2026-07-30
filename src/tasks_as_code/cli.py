@@ -665,12 +665,23 @@ def cmd_stale(
 @app.command("sync")
 def cmd_sync(
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would change, send nothing."),
+    check: bool = typer.Option(
+        False, "--check", help="Compare the backlog against the project, then stop."
+    ),
     active_only: bool = typer.Option(True, "--active-only/--all", help="Skip archived tasks."),
 ) -> None:
     """Push tasks to Jira Cloud. Local YAML stays the source of truth."""
-    from .integrations.jira import JiraClient, JiraCredentials, JiraNotConfigured, sync_task
+    from .integrations.jira import (
+        JiraClient,
+        JiraCredentials,
+        JiraNotConfigured,
+        preflight,
+        sync_task,
+        task_label,
+    )
 
     paths = _paths()
+    settings = paths.config.jira
     refs = _load(paths, active_only=active_only)
     if not refs:
         console.print("[yellow]No tasks to sync.[/yellow]")
@@ -682,9 +693,34 @@ def cmd_sync(
     except JiraNotConfigured as exc:
         _fail(str(exc))
 
+    if check:
+        console.print(
+            f"Checking {len(refs)} task(s) against {credentials.project_key} "
+            f"on {credentials.base_url}"
+        )
+        findings = preflight(client, settings, refs)
+        if not findings:
+            console.print("[green]OK[/green] — types, priorities, statuses and fields all line up")
+            return
+        for finding in findings:
+            label = "[red]blocker[/red]" if finding.blocking else "[yellow]note[/yellow]"
+            console.print(f"{label} {finding.message}")
+        if any(finding.blocking for finding in findings):
+            raise typer.Exit(1)
+        return
+
     console.print(f"Syncing {len(refs)} task(s) to {credentials.base_url}")
     if dry_run:
         console.print("[yellow]Dry run — nothing is sent.[/yellow]")
+
+    # One search for the whole backlog rather than one per task. A failure here is
+    # not fatal: sync_task falls back to searching per task when handed no map.
+    known: dict[str, dict] | None
+    try:
+        known = client.issues_by_labels([task_label(settings, ref.task.id) for ref in refs])
+    except Exception as exc:
+        err_console.print(f"[yellow]Batched lookup failed ({exc}); searching per task.[/yellow]")
+        known = None
 
     table = Table(show_header=True, header_style="bold")
     table.add_column("ID")
@@ -692,7 +728,9 @@ def cmd_sync(
     failures = 0
     for ref in refs:
         try:
-            table.add_row(ref.task.id, sync_task(client, paths.config.jira, ref, dry_run=dry_run))
+            table.add_row(
+                ref.task.id, sync_task(client, settings, ref, dry_run=dry_run, known=known)
+            )
         except Exception as exc:
             failures += 1
             table.add_row(ref.task.id, f"[red]{exc}[/red]")

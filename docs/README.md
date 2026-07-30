@@ -8,8 +8,8 @@
   backlog with shards, epics and owners, and why there is no server.
 - [`enforcement.md`](enforcement.md) — making a task mandatory: the commit-msg
   hook, the CI gate, the escape hatch, and how to roll it out on a live repo.
-- [`jira-sync.md`](jira-sync.md) — one-way Jira Cloud sync, how issues are
-  matched, and what it does not do.
+- [`jira-sync.md`](jira-sync.md) — one-way Jira Cloud sync: how issues are
+  matched, how to check a project before pushing to it, and what it does not do.
 
 Start with the [project README](../README.md) for install and a quickstart.
 

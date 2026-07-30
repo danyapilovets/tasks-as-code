@@ -7,8 +7,45 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- `tasc sync` no longer fails on team-managed Jira projects. It read the create
+  screen for the issue type and drops fields the project does not have, instead of
+  always sending `priority` — which a team-managed project has no field for,
+  answering `400` for every task and making the command unusable. If the screen
+  cannot be read, everything is sent as before and Jira decides, because dropping
+  fields on a failed metadata read would be worse than a clear error.
+- Descriptions are real Atlassian Document Format: a paragraph per block and
+  acceptance criteria as a bullet list. ADF carries line structure in nodes, so
+  the newlines that used to separate them inside a single text node were dropped
+  and the whole description rendered as one run-on line.
+- A status transition is matched by the status it leads to, not by the transition's
+  own name. `status_map` holds status names, and a workflow is free to call the
+  transition into `In Progress` something else entirely, in which case the status
+  was silently left alone.
+
+### Added
+
+- `tasc sync --check` compares the backlog against the project before anything is
+  sent: issue types, the priorities of its scheme, the statuses of its workflow
+  and the fields on its create screen. A mismatch is one line up front instead of
+  one HTTP 400 per task halfway through a push. Unlike `--dry-run`, it asks the
+  project whether the payload would be accepted.
+- `jira.type_map` and `jira.priority_map` in `.tasc.yaml`, mirroring `status_map`.
+  Types and priorities were sent verbatim, which breaks on a localised project or
+  a renamed priority scheme. Empty by default, so behaviour is unchanged.
+- `JIRA_ASSIGNEE_ACCOUNT_ID` assigns created issues, so they appear on boards
+  filtered by assignee rather than existing invisibly in the project. Applied on
+  create only; `jira.force_assignee: true` reapplies it on every update for teams
+  that want the local configuration to win over reassignment in Jira.
+- A `429` or `5xx` from Jira is retried up to three times, waiting as long as
+  `Retry-After` asks. Rate limiting used to look exactly like a configuration
+  error: a red cell and a non-zero exit.
+
 ### Changed
 
+- Sync looks up every label in one query instead of one search per task, which
+  was the bulk of its call budget and the quickest way to meet the rate limit.
 - Distribution is the git tag rather than a package index. `pipx`, `pip` and
   pre-commit all install from a tag, which pins to an exact commit; install
   instructions, the Jira extra hint and the release workflow say so. Nothing is

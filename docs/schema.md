@@ -130,16 +130,23 @@ refs:                        # rules for `tasc check-ref`
   skip_markers: ["[skip-task]"]   # a message containing one of these is skipped
   require_status: null            # e.g. in_progress; null accepts any open status
 jira:
-  label_prefix: tasc
-  status_map:
+  label_prefix: tasc         # label linking an issue to a task id
+  status_map:                # local status -> Jira status to transition into
     todo: To Do
     in_progress: In Progress
     blocked: To Do
     done: Done
+  type_map: {}               # local type -> Jira issue type, e.g. Task: Задача
+  priority_map: {}           # local priority -> Jira priority, e.g. High: Высокий
+  force_assignee: false      # reapply the assignee on update, not only on create
 ```
 
 Unknown keys are rejected: a silently ignored typo would look like the setting
 had no effect.
+
+`type_map` and `priority_map` are empty by default, which sends the local value
+unchanged. Together with `status_map` they cover the three names Jira lets each
+project choose freely; `tasc sync --check` reports the ones that do not match.
 
 `skip_markers: []` removes the escape hatch from `check-ref`; see
 [enforcement.md](enforcement.md) for why that is usually the wrong trade.

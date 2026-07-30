@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 from typer.testing import CliRunner
@@ -155,8 +155,15 @@ def test_stale_lists_a_task_that_was_never_stamped(in_project: Paths, add_epic) 
 class StubClient:
     """Stands in for JiraClient so no session is ever constructed."""
 
+    #: Labels of the last batched lookup, so a test can see it happened once.
+    looked_up: ClassVar[list[str]] = []
+
     def __init__(self, *_: Any, **__: Any) -> None:
         pass
+
+    def issues_by_labels(self, labels: list[str]) -> dict[str, Any]:
+        StubClient.looked_up = list(labels)
+        return {}
 
 
 @pytest.fixture
@@ -218,3 +225,61 @@ def test_sync_without_credentials_explains_what_is_missing(
     code, out = run("sync")
     assert code == 1
     assert "JIRA_BASE_URL" in out
+
+
+def test_sync_looks_up_the_whole_backlog_in_one_query(
+    in_project: Paths, add_epic, stub_jira, monkeypatch
+) -> None:
+    add_epic("api", [make_task("api-001"), make_task("api-002")])
+    monkeypatch.setattr(stub_jira, "sync_task", lambda *a, **k: "created ABC-1")
+    assert run("sync")[0] == 0
+    assert StubClient.looked_up == ["tasc-api-001", "tasc-api-002"]
+
+
+def test_sync_falls_back_to_searching_per_task(
+    in_project: Paths, add_epic, stub_jira, monkeypatch
+) -> None:
+    """A failed batch must not cost the sync; it only costs the saved queries."""
+    add_epic("api", [make_task("api-001")])
+    monkeypatch.setattr(
+        StubClient, "issues_by_labels", lambda *_: (_ for _ in ()).throw(RuntimeError("429"))
+    )
+    monkeypatch.setattr(stub_jira, "sync_task", lambda *a, **k: "created ABC-1")
+    code, out = run("sync")
+    assert code == 0
+    assert "searching per task" in out
+    assert "created ABC-1" in out
+
+
+def test_sync_check_lists_blockers_and_stops(
+    in_project: Paths, add_epic, stub_jira, monkeypatch
+) -> None:
+    add_epic("api", [make_task("api-001")])
+    finding = stub_jira.Finding(True, "Issue type 'Task' does not exist in the project")
+    monkeypatch.setattr(stub_jira, "preflight", lambda *a, **k: [finding])
+    monkeypatch.setattr(stub_jira, "sync_task", lambda *a, **k: pytest.fail("must not send"))
+    code, out = run("sync", "--check")
+    assert code == 1
+    assert "blocker" in out
+    assert "does not exist" in out
+
+
+def test_sync_check_passes_notes_without_failing(
+    in_project: Paths, add_epic, stub_jira, monkeypatch
+) -> None:
+    add_epic("api", [make_task("api-001")])
+    note = stub_jira.Finding(False, "'Task' has no priority on its create screen")
+    monkeypatch.setattr(stub_jira, "preflight", lambda *a, **k: [note])
+    code, out = run("sync", "--check")
+    assert code == 0
+    assert "note" in out
+
+
+def test_sync_check_says_so_when_everything_lines_up(
+    in_project: Paths, add_epic, stub_jira, monkeypatch
+) -> None:
+    add_epic("api", [make_task("api-001")])
+    monkeypatch.setattr(stub_jira, "preflight", lambda *a, **k: [])
+    code, out = run("sync", "--check")
+    assert code == 0
+    assert "line up" in out

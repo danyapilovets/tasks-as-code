@@ -29,6 +29,15 @@ class JiraSettings(BaseModel):
     #: Jira workflow status names differ per project and language, so they are
     #: configuration rather than constants.
     status_map: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_JIRA_STATUS_MAP))
+    #: Issue type and priority names have the same problem as statuses: a
+    #: localised project calls the type "Задача" and priority schemes get renamed.
+    #: Empty means the local value is sent unchanged.
+    type_map: dict[str, str] = Field(default_factory=dict)
+    priority_map: dict[str, str] = Field(default_factory=dict)
+    #: Reapply JIRA_ASSIGNEE_ACCOUNT_ID on every update, not only on create.
+    #: Off by default: overwriting an assignee chosen in Jira would fight the
+    #: people using the board.
+    force_assignee: bool = False
 
 
 class RefSettings(BaseModel):

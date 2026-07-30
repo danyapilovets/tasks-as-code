@@ -138,7 +138,7 @@ without the tool dropping them.
 | `tasc check-ref` | Check that a message names a task that exists; non-zero if not |
 | `tasc install-hook` | Install a `commit-msg` hook running `check-ref` |
 | `tasc reindex` | Regenerate `INDEX.md` |
-| `tasc sync` | Push to Jira Cloud (one-way) |
+| `tasc sync` | Push to Jira Cloud (one-way); `--check` compares first |
 
 Every read command accepts `--json`. Run `tasc --help` for all flags.
 
@@ -276,10 +276,14 @@ jira:
     in_progress: In Progress
     blocked: To Do
     done: Done
+  type_map: {}          # e.g. Task: Задача
+  priority_map: {}      # e.g. High: Высокий
+  force_assignee: false # reapply the assignee on update, not only on create
 ```
 
-Jira workflow status names differ per project and per language, which is why
-they are configuration rather than constants. See
+Jira status, type and priority names differ per project and per language, which
+is why they are configuration rather than constants. `tasc sync --check` compares
+them against the project before anything is sent. See
 [`docs/jira-sync.md`](docs/jira-sync.md).
 
 `done_dir` lets a repository that already keeps release notes somewhere point at
