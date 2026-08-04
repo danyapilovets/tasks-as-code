@@ -38,6 +38,22 @@ class JiraSettings(BaseModel):
     #: Off by default: overwriting an assignee chosen in Jira would fight the
     #: people using the board.
     force_assignee: bool = False
+    #: Post the note from ``tasc done --note`` as a comment. What a task produced
+    #: is the part people in Jira ask about, and a status change does not say it.
+    comment_on_done: bool = True
+    #: Mirror ``depends_on`` as issue links. A dependency written into the
+    #: description is text nobody can filter, sort or see on a board.
+    link_dependencies: bool = True
+    #: Name of the link type used for that. "Blocks" exists in a default Jira;
+    #: instances rename it, and some replace it entirely.
+    dependency_link_type: str = "Blocks"
+    #: Give each task the Jira epic of its own epic as parent, creating the epic
+    #: issue when it does not exist. Off by default: it writes issues the backlog
+    #: does not list, and a project whose hierarchy is managed elsewhere would end
+    #: up with two sets of epics.
+    epic_as_parent: bool = False
+    #: Issue type used for those epics.
+    epic_type: str = "Epic"
 
 
 class RefSettings(BaseModel):
@@ -66,6 +82,10 @@ class Config(BaseModel):
     done_dir: str | None = None
     #: Days after which an in_progress task is reported by ``tasc stale``.
     stale_after_days: int = Field(default=7, ge=1)
+    #: Refuse to close a task without ``--note``. A backlog of closed tasks that
+    #: never say what they produced answers "was it done?" and never "what came
+    #: out of it", which is the question asked months later.
+    require_note: bool = False
     refs: RefSettings = Field(default_factory=RefSettings)
     jira: JiraSettings = Field(default_factory=JiraSettings)
 

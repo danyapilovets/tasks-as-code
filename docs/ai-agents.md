@@ -15,7 +15,8 @@ prompt:
 - Before writing code, run `tasc next --json` and work only on the task it
   returns. If it returns nothing, stop and ask.
 - Run `tasc mark <id> in_progress` before you start.
-- Run `tasc done <id> --note "<what you actually changed>"` when finished.
+- Run `tasc done <id> --note "<what came out of it>"` when finished. The note is
+  the result, not a restatement of the summary.
 - Never invent a task id. To add work, run
   `tasc new <epic> --summary "..." --json` and use the id it returns.
 - Reference the task id in the commit message.
@@ -32,6 +33,10 @@ own name:
 Two properties make this reliable: selection is deterministic, so the same
 repository state always yields the same task; and ids are allocated by the tool,
 so an agent cannot reference a task that does not exist.
+
+The note is the other line an agent skips, and `require_note: true` in
+`.tasc.yaml` turns it into a refusal instead of a habit: `tasc done` without one
+fails. With Jira sync on, that note is also what reaches the issue as a comment.
 
 The last line of that rule is the one an agent quietly drops, so it is worth
 enforcing rather than requesting. `tasc check-ref`, wired to a `commit-msg` hook

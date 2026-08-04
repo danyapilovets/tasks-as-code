@@ -91,7 +91,7 @@ name: Tasks
 on: [pull_request]
 jobs:
   gate:
-    uses: danyapilovets/tasks-as-code/.github/workflows/task-gate.yml@v1.1.0
+    uses: danyapilovets/tasks-as-code/.github/workflows/task-gate.yml@v1.2.0
 ```
 
 Then mark **Tasks / gate** as a required status check in branch protection.
@@ -114,7 +114,7 @@ If you use pre-commit, the hooks ship from this repository:
 ```yaml
 repos:
   - repo: https://github.com/danyapilovets/tasks-as-code
-    rev: v1.1.0
+    rev: v1.2.0
     hooks:
       - id: tasc-check-ref
       - id: tasc-validate
@@ -215,7 +215,7 @@ should not be blocked by it.
 jobs:
   gate:
     if: github.actor != 'dependabot[bot]'
-    uses: danyapilovets/tasks-as-code/.github/workflows/task-gate.yml@v1.1.0
+    uses: danyapilovets/tasks-as-code/.github/workflows/task-gate.yml@v1.2.0
 ```
 
 - For a release commit, `[skip-task]` in the message is the honest answer.

@@ -40,9 +40,14 @@ task:
   summary: Add retry to the payment webhook
   status: done
   updated: 2026-07-28
+  note: Retries 3x with backoff
 ```
 
 A bare task mapping without the `task:` wrapper is also accepted on read.
+
+`note` is what you passed to `tasc done --note`. It is also appended to the
+quarterly log; the copy here is the one integrations can read, since the log is
+prose.
 
 ## Fields
 
@@ -59,6 +64,7 @@ A bare task mapping without the `task:` wrapper is also accepted on read.
 | `depends_on` | list of ids | `[]` | Blocks selection until each is done |
 | `epic` | string | inferred | Falls back to the id prefix |
 | `updated` | ISO date | set by CLI | Last status change; drives `tasc stale` |
+| `note` | string | set by CLI | What closing it produced, from `tasc done --note` |
 
 Unassigned tasks omit `owner` entirely rather than writing `owner: null`, so files
 stay readable. Any string is accepted — an agent name, a git handle, a person.
@@ -126,6 +132,7 @@ project_name: Your Project   # heading of the generated index
 tasks_dir: tasks             # where the tree lives
 done_dir: null               # quarterly logs; defaults to <tasks_dir>/done
 stale_after_days: 7          # threshold for `tasc stale`
+require_note: false          # true refuses `tasc done` without --note
 refs:                        # rules for `tasc check-ref`
   skip_markers: ["[skip-task]"]   # a message containing one of these is skipped
   require_status: null            # e.g. [in_progress, done]; null accepts any status
@@ -139,7 +146,16 @@ jira:
   type_map: {}               # local type -> Jira issue type, e.g. Task: Задача
   priority_map: {}           # local priority -> Jira priority, e.g. High: Высокий
   force_assignee: false      # reapply the assignee on update, not only on create
+  comment_on_done: true      # post the note as a comment when the task closes
+  link_dependencies: true    # depends_on becomes an issue link
+  dependency_link_type: Blocks
+  epic_as_parent: false      # also give tasks a parent epic in Jira
+  epic_type: Epic
 ```
+
+`require_note: true` makes the outcome part of closing a task rather than an
+option: a backlog whose closed tasks say only *that* they were done cannot answer
+what came out of them, which is the question asked months later.
 
 Unknown keys are rejected: a silently ignored typo would look like the setting
 had no effect.

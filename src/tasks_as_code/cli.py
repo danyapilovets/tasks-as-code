@@ -436,6 +436,12 @@ def cmd_done(
 ) -> None:
     """Close a task: mark done, move to archive, append to the quarterly log."""
     paths = _paths(as_json)
+    if paths.config.require_note and not (note or "").strip():
+        _fail(
+            f'Closing {task_id} needs its outcome: tasc done {task_id} --note "what came '
+            'out of it". Set require_note: false in .tasc.yaml to close without one.',
+            as_json,
+        )
     try:
         archive_path, log_path = archive(paths, task_id, note=note)
     except (TaskNotFound, InvalidTransition) as exc:
@@ -668,13 +674,20 @@ def cmd_sync(
     check: bool = typer.Option(
         False, "--check", help="Compare the backlog against the project, then stop."
     ),
-    active_only: bool = typer.Option(True, "--active-only/--all", help="Skip archived tasks."),
+    active_only: bool = typer.Option(
+        True,
+        "--active-only/--all",
+        help="Create issues for active tasks only. Archived tasks are still updated "
+        "where an issue exists; --all creates issues for them too.",
+    ),
 ) -> None:
     """Push tasks to Jira Cloud. Local YAML stays the source of truth."""
     from .integrations.jira import (
         JiraClient,
         JiraCredentials,
         JiraNotConfigured,
+        ensure_epics,
+        epic_label,
         preflight,
         sync_task,
         task_label,
@@ -682,7 +695,7 @@ def cmd_sync(
 
     paths = _paths()
     settings = paths.config.jira
-    refs = _load(paths, active_only=active_only)
+    refs = _load(paths, active_only=False)
     if not refs:
         console.print("[yellow]No tasks to sync.[/yellow]")
         return
@@ -694,11 +707,12 @@ def cmd_sync(
         _fail(str(exc))
 
     if check:
+        candidates = [ref for ref in refs if ref.location == "active"] if active_only else refs
         console.print(
-            f"Checking {len(refs)} task(s) against {credentials.project_key} "
+            f"Checking {len(candidates)} task(s) against {credentials.project_key} "
             f"on {credentials.base_url}"
         )
-        findings = preflight(client, settings, refs)
+        findings = preflight(client, settings, candidates)
         if not findings:
             console.print("[green]OK[/green] — types, priorities, statuses and fields all line up")
             return
@@ -709,18 +723,44 @@ def cmd_sync(
             raise typer.Exit(1)
         return
 
+    # One search for the whole backlog rather than one per task. A failure here is
+    # not fatal: sync_task falls back to searching per task when handed no map.
+    known: dict[str, dict] | None
+    labels = [task_label(settings, ref.task.id) for ref in refs]
+    if settings.epic_as_parent:
+        labels += sorted({epic_label(settings, ref.epic) for ref in refs})
+    try:
+        known = client.issues_by_labels(labels)
+    except Exception as exc:
+        err_console.print(f"[yellow]Batched lookup failed ({exc}); searching per task.[/yellow]")
+        known = None
+
+    if active_only:
+        # A closed task whose issue exists is still synced: its issue would
+        # otherwise sit in the old status forever, saying work is in progress that
+        # finished weeks ago. Without the map, telling which archived tasks have
+        # an issue would cost a search each, so they wait for the next run.
+        if known is None:
+            err_console.print("[yellow]Archived tasks are skipped without the map.[/yellow]")
+            refs = [ref for ref in refs if ref.location == "active"]
+        else:
+            refs = [
+                ref
+                for ref in refs
+                if ref.location == "active" or task_label(settings, ref.task.id) in known
+            ]
+
     console.print(f"Syncing {len(refs)} task(s) to {credentials.base_url}")
     if dry_run:
         console.print("[yellow]Dry run — nothing is sent.[/yellow]")
 
-    # One search for the whole backlog rather than one per task. A failure here is
-    # not fatal: sync_task falls back to searching per task when handed no map.
-    known: dict[str, dict] | None
+    # Before the tasks, so that two tasks of one epic cannot each create it. A
+    # failure here costs the parents, not the sync.
     try:
-        known = client.issues_by_labels([task_label(settings, ref.task.id) for ref in refs])
+        epics = ensure_epics(client, settings, refs, known=known, dry_run=dry_run)
     except Exception as exc:
-        err_console.print(f"[yellow]Batched lookup failed ({exc}); searching per task.[/yellow]")
-        known = None
+        err_console.print(f"[yellow]Epics unavailable ({exc}); syncing without parents.[/yellow]")
+        epics = {}
 
     table = Table(show_header=True, header_style="bold")
     table.add_column("ID")
@@ -729,7 +769,16 @@ def cmd_sync(
     for ref in refs:
         try:
             table.add_row(
-                ref.task.id, sync_task(client, settings, ref, dry_run=dry_run, known=known)
+                ref.task.id,
+                sync_task(
+                    client,
+                    settings,
+                    ref,
+                    dry_run=dry_run,
+                    known=known,
+                    create=not active_only or ref.location == "active",
+                    parent=epics.get(ref.epic),
+                ),
             )
         except Exception as exc:
             failures += 1

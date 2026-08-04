@@ -172,7 +172,12 @@ def set_status(
 
 
 def archive(paths: Paths, task_id: str, note: str | None = None) -> tuple[Path, Path]:
-    """Close a task: mark done, move to archive, append to the quarterly log."""
+    """Close a task: mark done, move to archive, append to the quarterly log.
+
+    ``note`` is written in both places deliberately: the log reads as a quarterly
+    record for people, and the copy kept on the task is what an integration can
+    push onward.
+    """
     refs = load_all(paths)
     ref = require(refs, task_id)
     if ref.location == "archive":
@@ -180,6 +185,8 @@ def archive(paths: Paths, task_id: str, note: str | None = None) -> tuple[Path, 
 
     ref.task.status = "done"
     ref.task.updated = date.today().isoformat()
+    if note and note.strip():
+        ref.task.note = note.strip()
     archive_path = write_archive_task(paths, ref.task, epic=ref.epic)
 
     remaining = [r.task for r in refs if r.file == ref.file and r.task.id != task_id]

@@ -283,3 +283,86 @@ def test_sync_check_says_so_when_everything_lines_up(
     code, out = run("sync", "--check")
     assert code == 0
     assert "line up" in out
+
+
+# --- archived tasks ---------------------------------------------------------
+
+
+def archive_task(project: Paths, task_id: str) -> None:
+    from tasks_as_code.core.loader import write_archive_task
+
+    write_archive_task(project, make_task(task_id, status="done"), epic="api")
+
+
+def record_sync(stub_jira, monkeypatch) -> list[tuple[str, bool]]:
+    """Capture which tasks reach sync_task, and whether they may be created."""
+    calls: list[tuple[str, bool]] = []
+
+    def _sync(_client, _settings, ref, dry_run=False, known=None, create=True, parent=None) -> str:
+        calls.append((ref.task.id, create))
+        return "updated ABC-1"
+
+    monkeypatch.setattr(stub_jira, "sync_task", _sync)
+    return calls
+
+
+def test_sync_updates_a_closed_task_whose_issue_exists(
+    in_project: Paths, add_epic, stub_jira, monkeypatch
+) -> None:
+    """Otherwise its issue keeps claiming work that finished weeks ago."""
+    add_epic("api", [make_task("api-001")])
+    archive_task(in_project, "api-002")
+    monkeypatch.setattr(
+        StubClient, "issues_by_labels", lambda *_: {"tasc-api-002": {"key": "ABC-2", "fields": {}}}
+    )
+    calls = record_sync(stub_jira, monkeypatch)
+    assert run("sync")[0] == 0
+    assert calls == [("api-001", True), ("api-002", False)]
+
+
+def test_sync_leaves_a_closed_task_with_no_issue_out(
+    in_project: Paths, add_epic, stub_jira, monkeypatch
+) -> None:
+    """The archive is history; a plain sync must not pour it into the project."""
+    add_epic("api", [make_task("api-001")])
+    archive_task(in_project, "api-002")
+    calls = record_sync(stub_jira, monkeypatch)
+    assert run("sync")[0] == 0
+    assert calls == [("api-001", True)]
+
+
+def test_sync_all_creates_issues_for_closed_tasks(
+    in_project: Paths, add_epic, stub_jira, monkeypatch
+) -> None:
+    add_epic("api", [make_task("api-001")])
+    archive_task(in_project, "api-002")
+    calls = record_sync(stub_jira, monkeypatch)
+    assert run("sync", "--all")[0] == 0
+    assert calls == [("api-001", True), ("api-002", True)]
+
+
+def test_sync_skips_closed_tasks_when_the_lookup_failed(
+    in_project: Paths, add_epic, stub_jira, monkeypatch
+) -> None:
+    """Without the map, sorting them out would cost a search per archived task."""
+    add_epic("api", [make_task("api-001")])
+    archive_task(in_project, "api-002")
+    monkeypatch.setattr(
+        StubClient, "issues_by_labels", lambda *_: (_ for _ in ()).throw(RuntimeError("429"))
+    )
+    calls = record_sync(stub_jira, monkeypatch)
+    code, out = run("sync")
+    assert code == 0
+    assert calls == [("api-001", True)]
+    assert "Archived tasks are skipped" in out
+
+
+def test_sync_check_ignores_the_archive_by_default(
+    in_project: Paths, add_epic, stub_jira, monkeypatch
+) -> None:
+    add_epic("api", [make_task("api-001")])
+    archive_task(in_project, "api-002")
+    monkeypatch.setattr(stub_jira, "preflight", lambda _c, _s, refs: [] if len(refs) == 1 else None)
+    code, out = run("sync", "--check")
+    assert code == 0
+    assert "Checking 1 task(s)" in out
