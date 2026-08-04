@@ -155,6 +155,49 @@ def test_new_mark_done_is_reflected_in_json_and_on_disk(in_project: Paths) -> No
     assert (in_project.root / closed["logged_in"]).is_file()
 
 
+def demand_a_note(project: Paths) -> None:
+    from tasks_as_code.core.config import Config
+
+    config = Config.load(project.config_file)
+    config.require_note = True
+    config.dump(project.config_file)
+
+
+def test_require_note_refuses_to_close_a_task_silently(in_project: Paths, add_epic) -> None:
+    """A closed task that never says what it produced answers the wrong question."""
+    add_epic("api", [make_task("api-001")])
+    demand_a_note(in_project)
+    code, out = run("done", "api-001")
+    assert code == 1
+    assert "--note" in out
+    assert not (in_project.archive / "api-001.yaml").exists()
+
+
+def test_require_note_accepts_a_close_that_carries_one(in_project: Paths, add_epic) -> None:
+    add_epic("api", [make_task("api-001")])
+    demand_a_note(in_project)
+    assert run("done", "api-001", "--note", "Retries 3x with backoff")[0] == 0
+
+
+def test_require_note_rejects_a_blank_one(in_project: Paths, add_epic) -> None:
+    add_epic("api", [make_task("api-001")])
+    demand_a_note(in_project)
+    assert run("done", "api-001", "--note", "   ")[0] == 1
+
+
+def test_require_note_reports_the_refusal_as_json(in_project: Paths, add_epic) -> None:
+    add_epic("api", [make_task("api-001")])
+    demand_a_note(in_project)
+    result = runner.invoke(app, ["done", "api-001", "--json"])
+    assert result.exit_code == 1
+    assert "--note" in json.loads(result.stdout)["error"]
+
+
+def test_closing_without_a_note_is_allowed_by_default(in_project: Paths, add_epic) -> None:
+    add_epic("api", [make_task("api-001")])
+    assert run("done", "api-001")[0] == 0
+
+
 def test_mark_rejects_done_and_points_at_the_right_command(in_project: Paths, add_epic) -> None:
     add_epic("api", [make_task("api-001")])
     code, out = run("mark", "api-001", "done")

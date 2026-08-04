@@ -87,6 +87,10 @@ class Task(BaseModel):
     #: ISO date of the last status change. Stamped on create/mark/done so
     #: ``tasc stale`` can flag work that has been in progress too long.
     updated: str | None = None
+    #: What closing the task actually produced, from ``tasc done --note``. Kept on
+    #: the task and not only in the quarterly log, because the log is prose for
+    #: people and integrations cannot read a result out of it.
+    note: str | None = None
 
     @field_validator("priority", mode="before")
     @classmethod

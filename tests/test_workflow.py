@@ -137,6 +137,19 @@ def test_archive_moves_the_task_and_writes_a_log(project: Paths, add_epic) -> No
     assert log_path.name == f"{quarter_label()}.md"
 
 
+def test_archive_keeps_the_note_on_the_task(project: Paths, add_epic) -> None:
+    """The log is prose for people; an integration needs the note as a field."""
+    add_epic("api", [make_task("api-001")])
+    archive(project, "api-001", note="  Shipped it  ")
+    assert load_archive(project)[0].task.note == "Shipped it"
+
+
+def test_archive_without_a_note_leaves_the_field_out(project: Paths, add_epic) -> None:
+    add_epic("api", [make_task("api-001")])
+    archive_path, _ = archive(project, "api-001")
+    assert "note" not in yaml.safe_load(archive_path.read_text(encoding="utf-8"))["task"]
+
+
 def test_archive_without_a_note_still_logs_the_heading(project: Paths, add_epic) -> None:
     add_epic("api", [make_task("api-001")])
     _, log_path = archive(project, "api-001")

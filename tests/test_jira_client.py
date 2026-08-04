@@ -311,6 +311,77 @@ def test_issues_by_labels_handles_an_empty_backlog(client: JiraClient) -> None:
     assert session.calls == []
 
 
+# --- comments ---------------------------------------------------------------
+
+
+def test_comments_are_read_across_pages(client: JiraClient) -> None:
+    """A marker posted months ago must stay findable under later discussion."""
+    session = attach(
+        client,
+        FakeResponse(200, {"comments": [{"id": "1"}], "total": 2}),
+        FakeResponse(200, {"comments": [{"id": "2"}], "total": 2}),
+    )
+    assert [comment["id"] for comment in client.comments("ABC-1")] == ["1", "2"]
+    assert session.calls[0][1].startswith(f"{client.api}/issue/ABC-1/comment?")
+
+
+def test_adding_a_comment_wraps_the_body(client: JiraClient) -> None:
+    session = attach(client, FakeResponse(201, {"id": "10"}))
+    document = {"version": 1, "type": "doc", "content": []}
+    client.add_comment("ABC-1", document)
+    method, url, kwargs = session.calls[0]
+    assert (method, url) == ("POST", f"{client.api}/issue/ABC-1/comment")
+    assert kwargs["json"] == {"body": document}
+
+
+# --- issue links ------------------------------------------------------------
+
+
+def test_link_types_are_listed_by_name(client: JiraClient) -> None:
+    types = [{"name": "Blocks"}, {"id": "2"}, {"name": "Clones"}]
+    attach(client, FakeResponse(200, {"issueLinkTypes": types}))
+    assert client.link_types() == ["Blocks", "Clones"]
+
+
+def test_link_types_tolerate_an_empty_answer(client: JiraClient) -> None:
+    attach(client, FakeResponse(200, {}))
+    assert client.link_types() == []
+
+
+def test_issue_links_ask_for_that_field_only(client: JiraClient) -> None:
+    session = attach(client, FakeResponse(200, {"fields": {"issuelinks": [{"id": "1"}]}}))
+    assert client.issue_links("ABC-1") == [{"id": "1"}]
+    assert session.calls[0][1] == f"{client.api}/issue/ABC-1?fields=issuelinks"
+
+
+def test_an_issue_without_links_reports_none(client: JiraClient) -> None:
+    attach(client, FakeResponse(200, {"fields": {}}))
+    assert client.issue_links("ABC-1") == []
+
+
+def test_linking_sends_both_ends_as_given(client: JiraClient) -> None:
+    session = attach(client, FakeResponse(201))
+    client.link_issues("Blocks", inward="ABC-1", outward="ABC-2")
+    method, url, kwargs = session.calls[0]
+    assert (method, url) == ("POST", f"{client.api}/issueLink")
+    assert kwargs["json"] == {
+        "type": {"name": "Blocks"},
+        "inwardIssue": {"key": "ABC-1"},
+        "outwardIssue": {"key": "ABC-2"},
+    }
+
+
+def test_an_empty_created_body_is_not_an_error(client: JiraClient) -> None:
+    """Creating a link answers 201 with nothing to parse."""
+
+    class NoBody(FakeResponse):
+        def json(self) -> Any:
+            raise ValueError("No JSON object could be decoded")
+
+    attach(client, NoBody(201))
+    assert client.link_issues("Blocks", inward="ABC-1", outward="ABC-2") == {}
+
+
 # --- project statuses -------------------------------------------------------
 
 

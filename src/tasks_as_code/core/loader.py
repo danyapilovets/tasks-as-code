@@ -105,7 +105,7 @@ def _clean_task_payload(task: Task) -> dict[str, Any]:
     for key in ("acceptance_criteria", "depends_on"):
         if not payload.get(key):
             payload.pop(key, None)
-    for key in ("epic", "updated", "owner"):
+    for key in ("epic", "updated", "owner", "note"):
         if payload.get(key) is None:
             payload.pop(key, None)
     return payload
