@@ -7,6 +7,50 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-08-04
+
+Another round from running the tool against a real Jira board: everything here is
+about the sync telling the truth about a backlog it already mirrors. No breaking
+changes — the CLI surface, the YAML format and the `--json` shapes still hold, and
+the new task field is optional.
+
+### Fixed
+
+- The outcome of a task reaches Jira. `tasc done <id> --note "..."` recorded what
+  a task produced in the quarterly log and nowhere else, so the issue people read
+  showed a transition into `Done` and no reason for it. The note is now kept on the
+  task itself and posted as a comment, once: it carries a marker line
+  (`tasc:<id> done`) that later runs recognise instead of commenting again. Set
+  `jira.comment_on_done: false` to keep the old behaviour.
+- Closing a task no longer stops syncing it. Only active tasks were pushed, and
+  `tasc done` moves a task to the archive — so the very status change people wait
+  for was the one that never arrived, and the issue kept claiming work was in
+  progress. A plain sync now also updates archived tasks whose issue exists, while
+  still not creating issues for the rest of the archive; `--all` does that, as
+  before. Telling the two apart needs the batched lookup, so when that query fails
+  the run says archived tasks are skipped rather than spending a search each.
+
+### Added
+
+- `depends_on` becomes a real Jira issue link, not a line of description text
+  nobody can filter or sort. The dependency is the end that blocks — verified
+  against Jira Cloud, whose field names suggest the opposite. A dependency with no
+  issue yet stays as text and becomes a link on a later run, and `--check` fails
+  when `jira.dependency_link_type` names a link type the instance does not have,
+  because that would be a `400` per dependent task. `jira.link_dependencies:
+  false` turns it off.
+- `jira.epic_as_parent` puts each task under a Jira epic of its own epic, creating
+  the epic issue when it does not exist and labelling it
+  `<label_prefix>-epic-<epic>`. An epic used to be a label only, which is a filter
+  rather than a hierarchy. Off by default: it writes issues no task names, and a
+  project whose hierarchy is managed elsewhere would end up with two sets of them.
+  Epics are resolved once per run, so two tasks of one epic cannot each create it.
+- Task field `note`, written by `tasc done --note`. The quarterly log is prose for
+  people; an integration needs the result as a field.
+- `require_note: true` in `.tasc.yaml` refuses `tasc done` without `--note`, so
+  the outcome is part of closing a task rather than an option somebody remembers.
+  Off by default, which leaves existing repositories unchanged.
+
 ## [1.1.0] — 2026-08-04
 
 Everything here came from using the tool against a real Jira project and a real
@@ -131,6 +175,7 @@ A breaking change to any of them requires a major version.
   `WIP` and `closed` resolve to canonical values.
 - Unknown task fields are preserved on write, so teams can attach their own.
 
-[Unreleased]: https://github.com/danyapilovets/tasks-as-code/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/danyapilovets/tasks-as-code/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/danyapilovets/tasks-as-code/releases/tag/v1.2.0
 [1.1.0]: https://github.com/danyapilovets/tasks-as-code/releases/tag/v1.1.0
 [1.0.0]: https://github.com/danyapilovets/tasks-as-code/releases/tag/v1.0.0
