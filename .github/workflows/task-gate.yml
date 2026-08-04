@@ -7,7 +7,7 @@ name: Task gate
 #   on: [pull_request]
 #   jobs:
 #     gate:
-#       uses: danyapilovets/tasks-as-code/.github/workflows/task-gate.yml@v1.0.0
+#       uses: danyapilovets/tasks-as-code/.github/workflows/task-gate.yml@v1.1.0
 #
 # Make it a required status check in branch protection. Local hooks are the fast
 # feedback but are per-clone and skippable with --no-verify; this is the part
@@ -17,11 +17,11 @@ on:
   workflow_call:
     inputs:
       version:
-        description: Version of tasks-as-code to install, e.g. v1.0.0 or main.
+        description: Version of tasks-as-code to install, e.g. v1.1.0 or main.
         type: string
         # Matches the tag this file ships in, so a gate does not change behaviour
         # under a repository that pinned it. Bump with each release.
-        default: v1.0.0
+        default: v1.1.0
       python-version:
         type: string
         default: "3.12"

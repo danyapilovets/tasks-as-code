@@ -162,7 +162,7 @@ class JiraClient:
             raise JiraNotConfigured(
                 "Jira sync needs the optional 'jira' extra. Reinstall with it:\n"
                 '  pipx install "tasks-as-code[jira] @ '
-                'git+https://github.com/danyapilovets/tasks-as-code@v1.0.0"'
+                'git+https://github.com/danyapilovets/tasks-as-code@v1.1.0"'
             ) from exc
 
         self.credentials = credentials

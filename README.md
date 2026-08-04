@@ -52,10 +52,10 @@ file it must read instead, and the answer stops being a guess.
 Installed from a git tag, not from a package index:
 
 ```sh
-pipx install "git+https://github.com/danyapilovets/tasks-as-code@v1.0.0"
+pipx install "git+https://github.com/danyapilovets/tasks-as-code@v1.1.0"
 
 # plus one-way Jira Cloud sync
-pipx install "tasks-as-code[jira] @ git+https://github.com/danyapilovets/tasks-as-code@v1.0.0"
+pipx install "tasks-as-code[jira] @ git+https://github.com/danyapilovets/tasks-as-code@v1.1.0"
 ```
 
 `pipx` keeps it in its own environment and on your `PATH`; `pip install` with the
@@ -224,7 +224,7 @@ name: Tasks
 on: [pull_request]
 jobs:
   gate:
-    uses: danyapilovets/tasks-as-code/.github/workflows/task-gate.yml@v1.0.0
+    uses: danyapilovets/tasks-as-code/.github/workflows/task-gate.yml@v1.1.0
 ```
 
 It validates the task files and checks the pull request title — the text that
@@ -238,7 +238,7 @@ If you use pre-commit, this repository ships the hooks:
 ```yaml
 repos:
   - repo: https://github.com/danyapilovets/tasks-as-code
-    rev: v1.0.0
+    rev: v1.1.0
     hooks:
       - id: tasc-check-ref     # needs: pre-commit install --hook-type commit-msg
       - id: tasc-validate
@@ -307,7 +307,7 @@ selection, JSON output, and one-way Jira sync. No board, no server, no daemon.
 
 ## Status
 
-Version 1.0.0: 99% coverage, linted with ruff, exercised on Linux, macOS and
+Version 1.1.0: 99% coverage, linted with ruff, exercised on Linux, macOS and
 Windows across Python 3.10 to 3.14.
 
 Three things are covered by [semantic versioning](https://semver.org), because

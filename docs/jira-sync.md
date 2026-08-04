@@ -6,7 +6,7 @@ live in Jira. Nothing is ever written back into your task files.
 ## Install and configure
 
 ```sh
-pipx install "tasks-as-code[jira] @ git+https://github.com/danyapilovets/tasks-as-code@v1.0.0"
+pipx install "tasks-as-code[jira] @ git+https://github.com/danyapilovets/tasks-as-code@v1.1.0"
 ```
 
 Credentials come from the environment, never from a file in the repository:

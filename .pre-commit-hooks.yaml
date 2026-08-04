@@ -2,7 +2,7 @@
 #
 #   repos:
 #     - repo: https://github.com/danyapilovets/tasks-as-code
-#       rev: v1.0.0
+#       rev: v1.1.0
 #       hooks:
 #         - id: tasc-check-ref
 #         - id: tasc-validate

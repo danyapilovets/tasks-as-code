@@ -7,6 +7,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-08-04
+
+Everything here came from using the tool against a real Jira project and a real
+backlog. No breaking changes: the CLI surface, the YAML format and the `--json`
+shapes from 1.0.0 all still hold, and `check-ref` accepts strictly more than it
+did.
+
 ### Fixed
 
 - A commit can reference the task it closes. `tasc done` archives the task, and
@@ -18,7 +25,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   mean reading the diff, and a hook sees the staged diff while CI sees a finished
   commit — the two layers would disagree about the same change, so status is
   compared and nothing else.
-- `tasc sync` no longer fails on team-managed Jira projects. It read the create
+- `tasc sync` no longer fails on team-managed Jira projects. It reads the create
   screen for the issue type and drops fields the project does not have, instead of
   always sending `priority` — which a team-managed project has no field for,
   answering `400` for every task and making the command unusable. If the screen
@@ -60,6 +67,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Sync looks up every label in one query instead of one search per task, which
   was the bulk of its call budget and the quickest way to meet the rate limit.
+- Python 3.14 is tested in CI and declared in the classifiers.
 - Distribution is the git tag rather than a package index. `pipx`, `pip` and
   pre-commit all install from a tag, which pins to an exact commit; install
   instructions, the Jira extra hint and the release workflow say so. Nothing is
@@ -123,5 +131,6 @@ A breaking change to any of them requires a major version.
   `WIP` and `closed` resolve to canonical values.
 - Unknown task fields are preserved on write, so teams can attach their own.
 
-[Unreleased]: https://github.com/danyapilovets/tasks-as-code/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/danyapilovets/tasks-as-code/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/danyapilovets/tasks-as-code/releases/tag/v1.1.0
 [1.0.0]: https://github.com/danyapilovets/tasks-as-code/releases/tag/v1.0.0
