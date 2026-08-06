@@ -1,8 +1,10 @@
 """One-way push of local tasks to Jira Cloud (REST API v3).
 
-Local YAML stays the source of truth: this module never writes back into task
-files. Credentials come from the environment. Everything that differs per project
-or per language — status, type and priority names — is configuration rather than a
+Local YAML stays the source of truth: this module never writes into task files. It
+reports the issue key it touched and leaves the writing to the caller, which is
+how the key of a freshly created issue reaches the task it belongs to.
+Credentials come from the environment. Everything that differs per project or per
+language — status, type and priority names — is configuration rather than a
 constant, because no default can be right for every Jira.
 
 The other half of that problem is fields. A team-managed project decides which
@@ -41,6 +43,22 @@ _LABELS_PER_QUERY = 50
 
 class JiraNotConfigured(RuntimeError):
     pass
+
+
+class SyncOutcome(str):
+    """What one task's sync did, and which issue it did it to.
+
+    A string, because that is what the report prints and what every caller before
+    the key existed expects. The key rides along for the one caller that needs it:
+    whoever writes it back onto the task.
+    """
+
+    key: str | None
+
+    def __new__(cls, message: str, key: str | None = None) -> SyncOutcome:
+        outcome = super().__new__(cls, message)
+        outcome.key = key
+        return outcome
 
 
 @dataclass(frozen=True)
@@ -498,7 +516,7 @@ def sync_task(
     known: Mapping[str, dict[str, Any]] | None = None,
     create: bool = True,
     parent: str | None = None,
-) -> str:
+) -> SyncOutcome:
     """Create or update the Jira issue mirroring one local task.
 
     ``known`` is a label-to-issue map from one batched search, so a sync of the
@@ -529,19 +547,19 @@ def sync_task(
     if existing:
         key = existing["key"]
         if dry_run:
-            return f"would update {key}"
+            return SyncOutcome(f"would update {key}", key)
         if assignee and settings.force_assignee:
             fields["assignee"] = {"id": assignee}
         client.update_issue(key, {"fields": _prune(fields, meta)})
         _move_to_target_status(client, settings, key, existing, ref.task.status)
         _link_dependencies(client, settings, key, dependencies)
         _publish_outcome(client, settings, key, ref)
-        return f"updated {key}"
+        return SyncOutcome(f"updated {key}", key)
 
     if not create:
-        return "no issue, left alone"
+        return SyncOutcome("no issue, left alone")
     if dry_run:
-        return "would create"
+        return SyncOutcome("would create")
     if assignee:
         fields["assignee"] = {"id": assignee}
     fields |= {
@@ -555,7 +573,7 @@ def sync_task(
         _move_to_target_status(client, settings, key, None, ref.task.status)
     _link_dependencies(client, settings, key, dependencies, fresh=True)
     _publish_outcome(client, settings, key, ref, fresh=True)
-    return f"created {key}"
+    return SyncOutcome(f"created {key}", key)
 
 
 def _dependency_issues(

@@ -1,12 +1,13 @@
 # Jira Cloud sync
 
 One-way push: local YAML is the source of truth, Jira is a mirror for people who
-live in Jira. Nothing is ever written back into your task files.
+live in Jira. The only thing written back into your task files is the issue key —
+see [Issue keys in git](#issue-keys-in-git).
 
 ## Install and configure
 
 ```sh
-pipx install "tasks-as-code[jira] @ git+https://github.com/danyapilovets/tasks-as-code@v1.2.0"
+pipx install "tasks-as-code[jira] @ git+https://github.com/danyapilovets/tasks-as-code@v1.3.0"
 ```
 
 Credentials come from the environment, never from a file in the repository:
@@ -63,6 +64,25 @@ alone, and `--all` is what creates issues for those.
 Sorting the two apart needs the batched label lookup. If that query fails, the
 run says so and archived tasks wait for the next one, rather than costing a
 search each.
+
+### Issue keys in git
+
+Every task that reaches an issue gets that issue's key written onto it:
+
+```yaml
+- id: api-004
+  summary: Add retry to the payment webhook
+  jira: AI-42
+```
+
+The run reports how many keys it wrote, because they are a change to commit. The
+key is what makes a commit or a merge request link to its issue, and a commit
+message is written offline — so it has to be in the repository rather than one
+search away. `tasc stamp` reads it from there; see the linking section of the
+[README](../README.md#linking-commits-to-the-tracker).
+
+Only the key is written, and nothing reads it back: the task file still decides
+what the issue says. A dry run writes nothing at all.
 
 ### Check before you push
 

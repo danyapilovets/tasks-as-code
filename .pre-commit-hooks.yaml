@@ -2,16 +2,17 @@
 #
 #   repos:
 #     - repo: https://github.com/danyapilovets/tasks-as-code
-#       rev: v1.1.0
+#       rev: v1.3.0
 #       hooks:
+#         - id: tasc-stamp
 #         - id: tasc-check-ref
 #         - id: tasc-validate
 #
 # pre-commit installs tasks-as-code into its own environment, so the hooks work
 # whether or not tasc is on the developer's PATH.
 #
-# The consuming repository needs the commit-msg hook type installed:
-#   pre-commit install --hook-type commit-msg
+# The consuming repository needs both message hook types installed:
+#   pre-commit install --hook-type commit-msg --hook-type prepare-commit-msg
 - id: tasc-check-ref
   name: commit message references a real task
   description: Fail when the message names no task, or names one that does not exist.
@@ -19,6 +20,14 @@
   entry: tasc check-ref --file
   language: python
   stages: [commit-msg]
+
+- id: tasc-stamp
+  name: commit message carries the issue key
+  description: Fill in the issue key of the task the message names, for the tracker to link.
+  # A prepare-commit-msg hook is handed the message file it should rewrite.
+  entry: tasc stamp
+  language: python
+  stages: [prepare-commit-msg]
 
 - id: tasc-validate
   name: task files are valid

@@ -92,6 +92,7 @@ def test_json_output_carries_the_detail(backlog: Paths) -> None:
         "ok": False,
         "referenced": ["api-002"],
         "invented": ["api-404"],
+        "unknown_keys": [],
         "wrong_status": {},
         "required": [],
         "skipped": None,
@@ -225,3 +226,85 @@ def test_the_installed_hook_is_a_working_shell_script(backlog: Paths) -> None:
     # which must warn rather than block.
     assert result.returncode == 0
     assert "skipping" in result.stderr
+
+
+# --- stamping the issue key onto a message ----------------------------------
+
+
+@pytest.fixture
+def synced(in_project: Paths, add_epic: Callable[..., object]) -> Paths:
+    add_epic("api", [make_task("api-002", status="in_progress", jira="AI-2")])
+    return in_project
+
+
+def test_stamp_rewrites_the_message_file(synced: Paths) -> None:
+    message = synced.root / "msg.txt"
+    message.write_text("api-002: retry on timeout\n", encoding="utf-8")
+
+    code, out = run("stamp", str(message))
+    assert code == 0
+    assert "AI-2" in out
+    assert message.read_text(encoding="utf-8") == "AI-2 retry on timeout\n"
+
+
+def test_stamp_follows_the_configured_shape(synced: Paths) -> None:
+    config = Config.load(synced.config_file)
+    config.refs.subject_format = "({key}) - {subject}"
+    config.dump(synced.config_file)
+
+    message = synced.root / "msg.txt"
+    message.write_text("api-002: retry\n", encoding="utf-8")
+    assert run("stamp", str(message))[0] == 0
+    assert message.read_text(encoding="utf-8") == "(AI-2) - retry\n"
+
+
+def test_stamp_never_blocks_the_commit(synced: Paths) -> None:
+    """Refusing is check-ref's job. Exiting non-zero here would stop the commit
+    before the author is told anything useful."""
+    message = synced.root / "msg.txt"
+    message.write_text("[skip-task] tidy up\n", encoding="utf-8")
+
+    code, out = run("stamp", str(message))
+    assert code == 0
+    assert "Left as written" in out
+    assert message.read_text(encoding="utf-8") == "[skip-task] tidy up\n"
+
+
+def test_stamp_survives_a_missing_file(synced: Paths) -> None:
+    code, out = run("stamp", str(synced.root / "nowhere.txt"))
+    assert code == 0
+    assert "Could not read" in out
+
+
+def test_a_stamped_message_passes_the_check(synced: Paths) -> None:
+    """The two hooks run in order, so what one writes the other has to accept."""
+    message = synced.root / "msg.txt"
+    message.write_text("api-002: retry\n", encoding="utf-8")
+    assert run("stamp", str(message))[0] == 0
+    assert run("check-ref", "--file", str(message))[0] == 0
+
+
+def test_install_hook_writes_the_prepare_hook_too(backlog: Paths) -> None:
+    (backlog.root / ".git").mkdir()
+    assert run("install-hook")[0] == 0
+    hook = backlog.root / ".git" / "hooks" / "prepare-commit-msg"
+    assert "tasc stamp" in hook.read_text(encoding="utf-8")
+
+
+@pytest.mark.skipif(not Path("/bin/sh").exists(), reason="no POSIX shell to run it with")
+def test_the_prepare_hook_leaves_merges_to_git(backlog: Paths) -> None:
+    (backlog.root / ".git").mkdir()
+    assert run("install-hook")[0] == 0
+    hook = backlog.root / ".git" / "hooks" / "prepare-commit-msg"
+
+    message = backlog.root / "msg.txt"
+    message.write_text("Merge branch 'main'\n", encoding="utf-8")
+    result = subprocess.run(
+        ["/bin/sh", str(hook), str(message), "merge"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=backlog.root,
+    )
+    assert result.returncode == 0
+    assert message.read_text(encoding="utf-8") == "Merge branch 'main'\n"

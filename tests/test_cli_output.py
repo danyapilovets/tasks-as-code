@@ -366,3 +366,47 @@ def test_sync_check_ignores_the_archive_by_default(
     code, out = run("sync", "--check")
     assert code == 0
     assert "Checking 1 task(s)" in out
+
+
+# --- issue keys reach the task files ----------------------------------------
+
+
+def test_sync_writes_the_key_onto_the_task(
+    in_project: Paths, add_epic, stub_jira, monkeypatch
+) -> None:
+    """Whoever writes a commit message is offline; the key has to be in git."""
+    add_epic("api", [make_task("api-001")])
+    monkeypatch.setattr(
+        stub_jira, "sync_task", lambda *a, **k: stub_jira.SyncOutcome("created ABC-1", "ABC-1")
+    )
+    code, out = run("sync")
+    assert code == 0
+    assert "1 issue key(s)" in out
+
+    from tasks_as_code.core.loader import load_all
+
+    assert load_all(in_project)[0].task.jira == "ABC-1"
+
+
+def test_a_dry_run_writes_no_key(in_project: Paths, add_epic, stub_jira, monkeypatch) -> None:
+    add_epic("api", [make_task("api-001")])
+    monkeypatch.setattr(
+        stub_jira, "sync_task", lambda *a, **k: stub_jira.SyncOutcome("would update ABC-1", "ABC-1")
+    )
+    assert run("sync", "--dry-run")[0] == 0
+
+    from tasks_as_code.core.loader import load_all
+
+    assert load_all(in_project)[0].task.jira is None
+
+
+def test_a_key_already_on_the_task_is_not_rewritten(
+    in_project: Paths, add_epic, stub_jira, monkeypatch
+) -> None:
+    add_epic("api", [make_task("api-001", jira="ABC-1")])
+    monkeypatch.setattr(
+        stub_jira, "sync_task", lambda *a, **k: stub_jira.SyncOutcome("updated ABC-1", "ABC-1")
+    )
+    code, out = run("sync")
+    assert code == 0
+    assert "issue key(s)" not in out

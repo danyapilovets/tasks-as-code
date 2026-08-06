@@ -32,6 +32,7 @@ from .core.workflow import (
     create,
     parse_shard,
     pick_next,
+    record_jira_key,
     require,
     set_status,
     stale_in_progress,
@@ -529,6 +530,19 @@ fi
 echo "tasc not found; skipping the task reference check." >&2
 """
 
+#: Runs before the editor opens, so the author sees the stamped subject and can
+#: still change it. Merges and squashes are left alone: their messages are git's,
+#: and the check exempts them anyway.
+_PREPARE_COMMIT_MSG_HOOK = """#!/bin/sh
+# Installed by 'tasc install-hook'. Remove this file to stop filling in issue keys.
+case "$2" in
+    merge|squash) exit 0 ;;
+esac
+if command -v tasc >/dev/null 2>&1; then
+    exec tasc stamp "$1"
+fi
+"""
+
 
 def _git_hooks_dir(root: Path) -> Path | None:
     """Locate the hooks directory, following the gitfile a worktree leaves behind."""
@@ -547,9 +561,9 @@ def _git_hooks_dir(root: Path) -> Path | None:
 
 @app.command("install-hook")
 def cmd_install_hook(
-    force: bool = typer.Option(False, "--force", help="Overwrite an existing commit-msg hook."),
+    force: bool = typer.Option(False, "--force", help="Overwrite existing hooks of these types."),
 ) -> None:
-    """Install a commit-msg hook that runs ``tasc check-ref``.
+    """Install the commit-msg and prepare-commit-msg hooks.
 
     For repositories not using pre-commit. Git hooks are per-clone and cannot be
     committed, so this is what each person runs once; CI is what actually
@@ -560,17 +574,60 @@ def cmd_install_hook(
     if hooks is None:
         _fail(f"No git repository found at {paths.root}")
 
-    hook = hooks / "commit-msg"
-    if hook.exists() and not force:
-        _fail(f"{hook} already exists. Pass --force to replace it.")
+    wanted = {"commit-msg": _COMMIT_MSG_HOOK, "prepare-commit-msg": _PREPARE_COMMIT_MSG_HOOK}
+    present = [name for name in wanted if (hooks / name).exists()]
+    if present and not force:
+        _fail(f"{', '.join(present)} already exist(s) in {hooks}. Pass --force to replace.")
 
     hooks.mkdir(parents=True, exist_ok=True)
-    hook.write_text(_COMMIT_MSG_HOOK, encoding="utf-8")
-    # On POSIX this is what makes git run the file rather than ignore it. Windows
-    # has no execute bit, so the call only clears the read-only flag.
-    hook.chmod(0o755)
-    console.print(f"[green]Installed[/green] {hook}")
-    console.print("Commits must now name a task. Bypass a single commit with --no-verify.")
+    for name, body in wanted.items():
+        hook = hooks / name
+        hook.write_text(body, encoding="utf-8")
+        # On POSIX this is what makes git run the file rather than ignore it.
+        # Windows has no execute bit, so the call only clears the read-only flag.
+        hook.chmod(0o755)
+        console.print(f"[green]Installed[/green] {hook}")
+    console.print(
+        "Commits must now name a task, and carry its issue key where it has one. "
+        "Bypass a single commit with --no-verify."
+    )
+
+
+@app.command("stamp")
+def cmd_stamp(
+    file: Path = typer.Argument(
+        ..., help="File holding the message, as prepare-commit-msg hooks pass it."
+    ),
+) -> None:
+    """Write the task's issue key into a commit message.
+
+    Meant as a prepare-commit-msg hook: the author writes the message they would
+    write anyway, and the key that links the commit to its issue is filled in from
+    the backlog. Always exits zero — a message that could not be stamped is for
+    ``check-ref`` to accept or refuse, and failing here would only block the commit
+    before the author sees why.
+    """
+    from .core.messages import stamp_message
+
+    try:
+        text = file.read_text(encoding="utf-8")
+    except OSError as exc:
+        err_console.print(f"[yellow]Could not read {file}: {exc}[/yellow]")
+        return
+
+    paths = _paths()
+    result = stamp_message(
+        text,
+        _load(paths),
+        subject_format=paths.config.refs.subject_format,
+        skip_markers=paths.config.refs.skip_markers,
+    )
+    if result.changed:
+        file.write_text(result.text, encoding="utf-8")
+        console.print(f"[green]Stamped[/green] {result.key} onto the message")
+        return
+    if result.reason:
+        console.print(f"[yellow]Left as written[/yellow] — {escape(result.reason)}")
 
 
 @app.command("check-ref")
@@ -766,24 +823,29 @@ def cmd_sync(
     table.add_column("ID")
     table.add_column("Result")
     failures = 0
+    recorded = 0
     for ref in refs:
         try:
-            table.add_row(
-                ref.task.id,
-                sync_task(
-                    client,
-                    settings,
-                    ref,
-                    dry_run=dry_run,
-                    known=known,
-                    create=not active_only or ref.location == "active",
-                    parent=epics.get(ref.epic),
-                ),
+            outcome = sync_task(
+                client,
+                settings,
+                ref,
+                dry_run=dry_run,
+                known=known,
+                create=not active_only or ref.location == "active",
+                parent=epics.get(ref.epic),
             )
+            table.add_row(ref.task.id, outcome)
         except Exception as exc:
             failures += 1
             table.add_row(ref.task.id, f"[red]{exc}[/red]")
+            continue
+        key = getattr(outcome, "key", None)
+        if key and not dry_run and record_jira_key(paths, ref.task.id, key):
+            recorded += 1
     console.print(table)
+    if recorded:
+        console.print(f"Wrote {recorded} issue key(s) into task files — commit them.")
     if failures:
         err_console.print(f"[red]{failures} task(s) failed to sync.[/red]")
         raise typer.Exit(1)

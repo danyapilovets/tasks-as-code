@@ -142,10 +142,15 @@ were cited and do not exist.
   "ok": false,
   "referenced": ["api-002"],
   "invented": ["api-404"],
+  "unknown_keys": [],
   "wrong_status": {},
   "skipped": null
 }
 ```
+
+An issue key counts as a reference where a sync has written one onto the task, so
+`(AI-42) - what changed` passes as `api-004` does. `unknown_keys` holds keys of a
+known project that no task carries — reported, but not a failure on their own.
 
 ### `tasc new`, `tasc mark`, `tasc done` with `--json`
 

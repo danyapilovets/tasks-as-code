@@ -19,6 +19,10 @@ PRIORITY_ORDER: dict[str, int] = {"Critical": 0, "High": 1, "Medium": 2, "Low": 
 
 TASK_ID_RE = re.compile(r"^[a-z][a-z0-9]*-\d+$")
 
+#: Shape of a Jira issue key. Upper case is what distinguishes it from a task id
+#: in the same line of text, which is what lets a commit message carry both.
+JIRA_KEY_RE = re.compile(r"^[A-Z][A-Z0-9]*-\d+$")
+
 _PRIORITY_ALIASES = {
     "critical": "Critical",
     "crit": "Critical",
@@ -91,6 +95,27 @@ class Task(BaseModel):
     #: the task and not only in the quarterly log, because the log is prose for
     #: people and integrations cannot read a result out of it.
     note: str | None = None
+    #: Key of the issue mirroring this task, written by ``tasc sync``. The tracker
+    #: mints it, so this is a pointer and not a second source of truth — but it has
+    #: to live in git, because a commit message is written offline and still has to
+    #: name the issue.
+    jira: str | None = None
+
+    @field_validator("jira", mode="before")
+    @classmethod
+    def _normalize_jira(cls, value: Any) -> Any:
+        # Trimmed but not upper-cased: folding case here would turn a task id
+        # written into this field by mistake into something that looks like a key.
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
+
+    @field_validator("jira")
+    @classmethod
+    def _check_jira(cls, value: str | None) -> str | None:
+        if value is not None and not JIRA_KEY_RE.match(value):
+            raise ValueError(f"'{value}' is not an issue key such as 'AI-42'")
+        return value
 
     @field_validator("priority", mode="before")
     @classmethod

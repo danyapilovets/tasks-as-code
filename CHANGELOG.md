@@ -7,6 +7,31 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-08-06
+
+Commits and merge requests can now name the issue of the task they belong to, which
+is the only thing a tracker looks for when linking work to a ticket. No breaking
+changes: the new task field and the new hook are both optional, and a message in the
+old form still passes.
+
+### Added
+
+- Task field `jira`, written by `tasc sync` after it creates or finds the issue. A
+  commit message is written offline, so the key has to be readable from git rather
+  than from a search; the sync says how many keys it wrote so they can be committed.
+- `tasc stamp <file>` rewrites the subject of a commit message to carry that key.
+  Built for `prepare-commit-msg`, and installed by `tasc install-hook` alongside the
+  existing check, or as the `tasc-stamp` pre-commit hook. It takes the task the
+  message names, or the single task in progress when it names none, and never fails
+  the commit — accepting or refusing a message is `check-ref`'s job.
+- `refs.subject_format` shapes what `stamp` writes, defaulting to `{key} {subject}`.
+  A tracker only needs the key to appear somewhere, so the rest is convention.
+- `tasc check-ref` accepts an issue key as a reference, so a message written in the
+  tracker's terms passes the same gate: `(AI-42) - what changed` names the same task
+  as `api-004`. A key of a known project that belongs to no task is reported rather
+  than accepted, and is not fatal on its own — an epic or a ticket outside the
+  backlog is a legitimate thing to mention. Keys of other projects stay prose.
+
 ## [1.2.0] — 2026-08-04
 
 Another round from running the tool against a real Jira board: everything here is

@@ -52,10 +52,10 @@ file it must read instead, and the answer stops being a guess.
 Installed from a git tag, not from a package index:
 
 ```sh
-pipx install "git+https://github.com/danyapilovets/tasks-as-code@v1.2.0"
+pipx install "git+https://github.com/danyapilovets/tasks-as-code@v1.3.0"
 
 # plus one-way Jira Cloud sync
-pipx install "tasks-as-code[jira] @ git+https://github.com/danyapilovets/tasks-as-code@v1.2.0"
+pipx install "tasks-as-code[jira] @ git+https://github.com/danyapilovets/tasks-as-code@v1.3.0"
 ```
 
 `pipx` keeps it in its own environment and on your `PATH`; `pip install` with the
@@ -136,7 +136,8 @@ without the tool dropping them.
 | `tasc validate` | Check the schema and structure; non-zero on any problem |
 | `tasc stale` | Report abandoned in-progress work; non-zero if any |
 | `tasc check-ref` | Check that a message names a task that exists; non-zero if not |
-| `tasc install-hook` | Install a `commit-msg` hook running `check-ref` |
+| `tasc stamp <file>` | Write the task's issue key into a commit message |
+| `tasc install-hook` | Install the `commit-msg` and `prepare-commit-msg` hooks |
 | `tasc reindex` | Regenerate `INDEX.md` |
 | `tasc sync` | Push to Jira Cloud (one-way); `--check` compares first |
 
@@ -202,7 +203,7 @@ turn it into the actual entry point, and neither asks anyone to remember a rule.
 **Locally**, a `commit-msg` hook rejects a commit that names no task:
 
 ```sh
-tasc install-hook        # writes .git/hooks/commit-msg
+tasc install-hook        # writes commit-msg and prepare-commit-msg
 ```
 
 ```console
@@ -224,7 +225,7 @@ name: Tasks
 on: [pull_request]
 jobs:
   gate:
-    uses: danyapilovets/tasks-as-code/.github/workflows/task-gate.yml@v1.2.0
+    uses: danyapilovets/tasks-as-code/.github/workflows/task-gate.yml@v1.3.0
 ```
 
 It validates the task files and checks the pull request title — the text that
@@ -238,8 +239,9 @@ If you use pre-commit, this repository ships the hooks:
 ```yaml
 repos:
   - repo: https://github.com/danyapilovets/tasks-as-code
-    rev: v1.2.0
+    rev: v1.3.0
     hooks:
+      - id: tasc-stamp         # needs: pre-commit install --hook-type prepare-commit-msg
       - id: tasc-check-ref     # needs: pre-commit install --hook-type commit-msg
       - id: tasc-validate
 ```
@@ -248,6 +250,38 @@ repos:
 escape hatch is deliberate: a gate with no way out is a gate people disable.
 [`docs/enforcement.md`](docs/enforcement.md) covers rollout on an existing
 repository and what to do about bots.
+
+## Linking commits to the tracker
+
+A tracker links a commit to an issue by finding the issue key in the message, and
+by nothing else. The key is also the one part of a task nobody remembers, so it is
+filled in rather than typed: `tasc sync` writes the key onto the task, and the
+`prepare-commit-msg` hook puts it into the subject line.
+
+```console
+$ git commit -m "api-004: retry on timeout"
+Stamped AI-42 onto the message
+$ git log -1 --format=%s
+AI-42 retry on timeout
+```
+
+The message you write names the task the way you already do; the id is replaced by
+the key, because carrying both says the same thing twice. Where the message names
+no task, the single task in progress is used — two of them is not guessed at. A
+task with no issue yet is reported and left alone, and so is a message that already
+names its issue.
+
+`refs.subject_format` sets the shape, and the whole point is that the tracker only
+needs the key somewhere in the message:
+
+```yaml
+refs:
+  subject_format: "({key}) - {subject}"   # (AI-42) - retry on timeout
+```
+
+`tasc check-ref` accepts either form, so the gate holds whichever one a message
+takes. Both hooks and CI need the sync to have run: the key lives in the task file,
+which is what makes writing a commit message an offline operation.
 
 Whatever else you gate on, these three pay for themselves:
 
@@ -270,6 +304,7 @@ require_note: false     # true refuses `tasc done` without --note
 refs:
   skip_markers: ["[skip-task]"]   # message containing this bypasses check-ref
   require_status: null            # e.g. [in_progress, done]; null accepts any status
+  subject_format: "{key} {subject}"   # shape `tasc stamp` writes, e.g. "({key}) - {subject}"
 jira:
   label_prefix: tasc
   status_map:
@@ -313,7 +348,7 @@ selection, JSON output, and one-way Jira sync. No board, no server, no daemon.
 
 ## Status
 
-Version 1.2.0: 99% coverage, linted with ruff, exercised on Linux, macOS and
+Version 1.3.0: 99% coverage, linted with ruff, exercised on Linux, macOS and
 Windows across Python 3.10 to 3.14.
 
 Three things are covered by [semantic versioning](https://semver.org), because

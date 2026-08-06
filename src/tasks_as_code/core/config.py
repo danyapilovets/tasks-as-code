@@ -68,6 +68,9 @@ class RefSettings(BaseModel):
     #: ``in_progress`` or ``[in_progress, done]``. ``None`` accepts any status,
     #: which is what lets the commit that closes a task name it.
     require_status: str | list[str] | None = None
+    #: Shape of the subject line ``tasc stamp`` writes. The tracker only needs the
+    #: key to appear somewhere, so the rest is the team's convention.
+    subject_format: str = "{key} {subject}"
 
 
 class Config(BaseModel):
