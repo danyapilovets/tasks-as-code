@@ -171,6 +171,27 @@ def set_status(
     return ref
 
 
+def record_jira_key(paths: Paths, task_id: str, key: str) -> bool:
+    """Write the issue key onto the task, reporting whether the file changed.
+
+    Called after a sync, so the key a tracker minted becomes readable offline: the
+    hook that puts it into a commit message must not need the network. Archived
+    tasks are written too — the commit that closes a task is the one that most
+    needs to name its issue.
+    """
+    refs = load_all(paths)
+    ref = require(refs, task_id)
+    if ref.task.jira == key:
+        return False
+
+    ref.task.jira = key
+    if ref.location == "archive":
+        write_archive_task(paths, ref.task, epic=ref.epic)
+        return True
+    rewrite_epic_file(ref.file, ref.epic, [r.task for r in refs if r.file == ref.file])
+    return True
+
+
 def archive(paths: Paths, task_id: str, note: str | None = None) -> tuple[Path, Path]:
     """Close a task: mark done, move to archive, append to the quarterly log.
 

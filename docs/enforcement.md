@@ -56,6 +56,7 @@ $ tasc check-ref --json "api-002 and api-404"
   "referenced": ["api-002"],
   "required": [],
   "skipped": null,
+  "unknown_keys": [],
   "wrong_status": {}
 }
 ```
@@ -73,14 +74,19 @@ any of them. Treat it as a convenience for the person, not a guarantee for the
 repository.
 
 ```sh
-tasc install-hook          # writes .git/hooks/commit-msg
-tasc install-hook --force  # replace an existing one
+tasc install-hook          # writes commit-msg and prepare-commit-msg
+tasc install-hook --force  # replace existing ones
 ```
 
 The generated hook shells out to `tasc`, so upgrading the tool upgrades the
 rule. If `tasc` is not on the person's `PATH` it warns and lets the commit
 through — a teammate who has not installed the tool should not be unable to
 commit.
+
+`prepare-commit-msg` is the other half: it fills the task's issue key into the
+subject before the check reads it, so the message the tracker needs and the message
+the gate accepts are the same message. It never fails a commit, and it leaves
+merges and squashes to git.
 
 **CI is the enforcement.** It runs on the server, on every pull request, and
 `--no-verify` cannot reach it. One reusable workflow is the whole setup:
@@ -91,7 +97,7 @@ name: Tasks
 on: [pull_request]
 jobs:
   gate:
-    uses: danyapilovets/tasks-as-code/.github/workflows/task-gate.yml@v1.2.0
+    uses: danyapilovets/tasks-as-code/.github/workflows/task-gate.yml@v1.3.0
 ```
 
 Then mark **Tasks / gate** as a required status check in branch protection.
@@ -114,16 +120,17 @@ If you use pre-commit, the hooks ship from this repository:
 ```yaml
 repos:
   - repo: https://github.com/danyapilovets/tasks-as-code
-    rev: v1.2.0
+    rev: v1.3.0
     hooks:
+      - id: tasc-stamp
       - id: tasc-check-ref
       - id: tasc-validate
 ```
 
-`tasc-check-ref` runs at the `commit-msg` stage, which pre-commit only installs
-when asked: `pre-commit install --hook-type commit-msg`. Without it the hook is
-configured and silently never runs — worth verifying once with a deliberately
-bad commit.
+These two run at message stages, which pre-commit only installs when asked:
+`pre-commit install --hook-type commit-msg --hook-type prepare-commit-msg`.
+Without that the hooks are configured and silently never run — worth verifying
+once with a deliberately bad commit.
 
 ## The escape hatch
 
@@ -215,7 +222,7 @@ should not be blocked by it.
 jobs:
   gate:
     if: github.actor != 'dependabot[bot]'
-    uses: danyapilovets/tasks-as-code/.github/workflows/task-gate.yml@v1.2.0
+    uses: danyapilovets/tasks-as-code/.github/workflows/task-gate.yml@v1.3.0
 ```
 
 - For a release commit, `[skip-task]` in the message is the honest answer.

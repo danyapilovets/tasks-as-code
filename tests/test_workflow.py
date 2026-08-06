@@ -18,6 +18,7 @@ from tasks_as_code.core.workflow import (
     next_id,
     pick_next,
     quarter_label,
+    record_jira_key,
     require,
     set_status,
     stale_in_progress,
@@ -230,3 +231,37 @@ def test_quarter_label_maps_months_to_quarters() -> None:
     assert quarter_label(date(2026, 4, 1)) == "2026-Q2"
     assert quarter_label(date(2026, 9, 30)) == "2026-Q3"
     assert quarter_label(date(2026, 12, 1)) == "2026-Q4"
+
+
+# --- recording the issue key -----------------------------------------------
+
+
+def test_the_key_is_written_onto_an_active_task(project: Paths, add_epic) -> None:
+    add_epic("api", [make_task("api-001"), make_task("api-002")])
+    assert record_jira_key(project, "api-001", "AI-7") is True
+
+    tasks = {ref.task.id: ref.task for ref in load_all(project)}
+    assert tasks["api-001"].jira == "AI-7"
+    assert tasks["api-002"].jira is None
+
+
+def test_writing_the_same_key_again_changes_nothing(project: Paths, add_epic) -> None:
+    """A sync runs often; rewriting every file each time would churn the diff."""
+    add_epic("api", [make_task("api-001", jira="AI-7")])
+    assert record_jira_key(project, "api-001", "AI-7") is False
+
+
+def test_the_key_is_written_onto_an_archived_task(project: Paths, add_epic) -> None:
+    """The commit that closes a task is the one that most needs to name its issue."""
+    add_epic("api", [make_task("api-001", status="in_progress")])
+    archive(project, "api-001", note="Done.")
+    assert record_jira_key(project, "api-001", "AI-7") is True
+
+    archived = load_archive(project)[0].task
+    assert (archived.jira, archived.note) == ("AI-7", "Done.")
+
+
+def test_an_unknown_task_is_refused(project: Paths, add_epic) -> None:
+    add_epic("api", [make_task("api-001")])
+    with pytest.raises(TaskNotFound):
+        record_jira_key(project, "api-404", "AI-7")

@@ -176,3 +176,67 @@ def test_the_same_id_twice_is_reported_once(refs: list) -> None:
 def test_ids_must_be_whole_words(refs: list) -> None:
     """A trailing digit run, as in a hash or a version, is not a task id."""
     assert not check_text("see xapi-002 and api-0021", refs).ok
+
+
+# --- issue keys ------------------------------------------------------------
+# A message written for the tracker names the issue, not the task file. It has to
+# pass the same check, or the two conventions cannot both hold at once.
+
+
+@pytest.fixture
+def synced(project: Paths, add_epic: Callable[..., object]) -> list:
+    add_epic(
+        "api",
+        [
+            make_task("api-001", status="done", jira="AI-1"),
+            make_task("api-002", status="in_progress", jira="AI-2"),
+            make_task("api-003", status="todo"),
+        ],
+    )
+    return load_all(project)
+
+
+def test_an_issue_key_references_the_task_that_carries_it(synced: list) -> None:
+    result = check_text("(AI-2) - retry on timeout", synced)
+    assert result.ok
+    assert result.referenced == ["api-002"]
+
+
+def test_a_key_of_a_known_project_with_no_task_is_not_a_reference(synced: list) -> None:
+    result = check_text("(AI-404) - retry", synced)
+    assert not result.ok
+    assert result.unknown_keys == ["AI-404"]
+    assert "AI-404 is not the issue of any task" in result.problems()[0]
+
+
+def test_such_a_key_alongside_a_real_task_still_passes(synced: list) -> None:
+    """Mentioning an epic or a ticket outside the backlog is normal."""
+    assert check_text("(AI-2) - part of AI-404", synced).ok
+
+
+def test_a_key_of_another_project_is_prose(synced: list) -> None:
+    result = check_text("api-002: as asked in SD-3132879681", synced)
+    assert result.ok
+    assert result.unknown_keys == []
+
+
+def test_a_key_is_checked_against_the_required_status_too(synced: list) -> None:
+    result = check_text("(AI-1) - work", synced, require_status="in_progress")
+    assert not result.ok
+    assert result.wrong_status == {"api-001": "done"}
+
+
+def test_the_key_and_the_id_of_one_task_count_once(synced: list) -> None:
+    assert check_text("(AI-2) - see api-002", synced).referenced == ["api-002"]
+
+
+def test_the_example_is_the_key_where_the_task_has_one(synced: list) -> None:
+    """The advice should show the form the message is expected to take."""
+    assert "AI-2" in check_text("nothing here", synced).problems()[0]
+
+
+def test_keys_are_ignored_before_the_first_sync(refs: list) -> None:
+    """With no key anywhere in the backlog, AI-2 is just text."""
+    result = check_text("(AI-2) - retry", refs)
+    assert not result.ok
+    assert result.unknown_keys == []

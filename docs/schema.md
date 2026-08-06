@@ -65,9 +65,16 @@ prose.
 | `epic` | string | inferred | Falls back to the id prefix |
 | `updated` | ISO date | set by CLI | Last status change; drives `tasc stale` |
 | `note` | string | set by CLI | What closing it produced, from `tasc done --note` |
+| `jira` | issue key | set by CLI | Issue mirroring the task, written by `tasc sync` |
 
 Unassigned tasks omit `owner` entirely rather than writing `owner: null`, so files
 stay readable. Any string is accepted — an agent name, a git handle, a person.
+
+`jira` is a pointer, not a second source of truth: Jira mints the key, `tasc sync`
+copies it here, and nothing reads it back the other way. It lives in git because a
+commit message is written offline and still has to name the issue — that is what
+`tasc stamp` uses. Only an issue key is accepted (`AI-42`), so a task id written
+into this field by mistake fails validation instead of linking nothing.
 
 ### Ids
 
@@ -136,6 +143,7 @@ require_note: false          # true refuses `tasc done` without --note
 refs:                        # rules for `tasc check-ref`
   skip_markers: ["[skip-task]"]   # a message containing one of these is skipped
   require_status: null            # e.g. [in_progress, done]; null accepts any status
+  subject_format: "{key} {subject}"   # what `tasc stamp` writes into a commit subject
 jira:
   label_prefix: tasc         # label linking an issue to a task id
   status_map:                # local status -> Jira status to transition into

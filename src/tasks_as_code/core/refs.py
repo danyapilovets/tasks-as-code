@@ -18,9 +18,14 @@ from .loader import TaskRef
 #: and reported rather than skipped.
 _CANDIDATE = re.compile(r"\b([a-z][a-z0-9]*)-(\d+)\b")
 
+#: An issue key of the tracker. Only keys of projects the backlog is already
+#: synced to are considered, so a mention of some other project's ticket stays
+#: prose rather than becoming a failed reference.
+_KEY_CANDIDATE = re.compile(r"\b([A-Z][A-Z0-9]*)-(\d+)\b")
+
 #: Commits git writes itself. Demanding a task id from them means blocking merges
 #: and reverts, which people then work around with --no-verify.
-_EXEMPT_SUBJECTS = re.compile(r"^(Merge |Revert |fixup! |squash! )")
+EXEMPT_SUBJECTS = re.compile(r"^(Merge |Revert |fixup! |squash! )")
 
 
 @dataclass
@@ -29,6 +34,10 @@ class RefCheck:
 
     referenced: list[str] = field(default_factory=list)
     invented: list[str] = field(default_factory=list)
+    #: Issue keys of a known project that no task carries. Reported but not fatal
+    #: on their own: an epic or a ticket outside the backlog is a legitimate thing
+    #: to mention alongside the task being worked on.
+    unknown_keys: list[str] = field(default_factory=list)
     wrong_status: dict[str, str] = field(default_factory=dict)
     skipped: str | None = None
     #: An id from this backlog, to show the format. A tool that rejects ids which
@@ -57,6 +66,7 @@ class RefCheck:
             "ok": self.ok,
             "referenced": self.referenced,
             "invented": self.invented,
+            "unknown_keys": self.unknown_keys,
             "wrong_status": self.wrong_status,
             "required": self.required,
             "skipped": self.skipped,
@@ -70,6 +80,11 @@ class RefCheck:
         if self.referenced:
             return problems
 
+        problems += [
+            f"{key} is not the issue of any task in the backlog — run 'tasc sync' if the "
+            "task is new, or name the task's own issue"
+            for key in self.unknown_keys
+        ]
         wanted = " or ".join(f"'{status}'" for status in self.required)
         hint = "; run 'tasc mark {id} in_progress' first" if "in_progress" in self.required else ""
         problems += [
@@ -78,7 +93,7 @@ class RefCheck:
         ]
         if not problems:
             example = self.example or "api-004"
-            problems.append(f"no task reference found — mention a task id such as '{example}'")
+            problems.append(f"no task reference found — name a task, such as '{example}'")
         return problems
 
 
@@ -103,6 +118,10 @@ def check_text(
     as task ids, while still catching ``be-999`` in a repository that has a ``be``
     epic — the first is noise, the second is a fabricated reference.
 
+    An issue key counts as a reference too, so a message written for the tracker's
+    benefit still passes: ``(AI-42) - what changed`` names the same task as
+    ``api-004``, provided a sync has written that key onto the task.
+
     Status is only checked when ``require_status`` asks for it. Any status is a
     valid reference otherwise, ``done`` included: closing a task and committing
     the result is the workflow this tool exists to support, and the commit that
@@ -114,22 +133,39 @@ def check_text(
             return RefCheck(skipped=marker)
 
     subject = next((line.strip() for line in text.splitlines() if line.strip()), "")
-    if _EXEMPT_SUBJECTS.match(subject):
+    if EXEMPT_SUBJECTS.match(subject):
         return RefCheck(skipped="generated commit")
 
     known = {ref.task.id: ref.task.status for ref in refs}
     prefixes = {task_id.rsplit("-", 1)[0] for task_id in known}
+    keys = {ref.task.jira: ref.task.id for ref in refs if ref.task.jira}
+    projects = {key.rsplit("-", 1)[0] for key in keys}
     wanted = _wanted_statuses(require_status)
+
+    # Open work first: the example is advice about what to reference, and pointing
+    # at a finished task would be poor advice. Named by its issue key where it has
+    # one, because that is then the form the message is expected to take.
+    by_id = {ref.task.id: ref.task for ref in refs}
+    example_id = next(
+        (task_id for task_id, status in sorted(known.items()) if status != "done"),
+        next(iter(sorted(known)), None),
+    )
+    example_task = by_id.get(example_id) if example_id else None
 
     result = RefCheck(
         required=wanted,
-        # Open work first: the example is advice about what to reference, and
-        # pointing at a finished task would be poor advice.
-        example=next(
-            (task_id for task_id, status in sorted(known.items()) if status != "done"),
-            next(iter(sorted(known)), None),
-        ),
+        example=(example_task.jira or example_id) if example_task else None,
     )
+    for match in _KEY_CANDIDATE.finditer(text):
+        candidate, project = match.group(0), match.group(1)
+        if project not in projects:
+            continue
+        task_id = keys.get(candidate)
+        if task_id is None:
+            if candidate not in result.unknown_keys:
+                result.unknown_keys.append(candidate)
+            continue
+        _accept(result, task_id, known[task_id], wanted)
     for match in _CANDIDATE.finditer(text):
         candidate, prefix = match.group(0), match.group(1)
         if prefix not in prefixes:
@@ -138,11 +174,16 @@ def check_text(
             if candidate not in result.invented:
                 result.invented.append(candidate)
             continue
-        if candidate in result.referenced:
-            continue
-        status = known[candidate]
-        if wanted and status not in wanted:
-            result.wrong_status[candidate] = status
-        else:
-            result.referenced.append(candidate)
+        _accept(result, candidate, known[candidate], wanted)
     return result
+
+
+def _accept(result: RefCheck, task_id: str, status: str, wanted: list[str]) -> None:
+    """Record a reference to a task that exists, as a reference or a wrong status."""
+    if task_id in result.referenced:
+        return
+    if wanted and status not in wanted:
+        result.wrong_status[task_id] = status
+        return
+    result.wrong_status.pop(task_id, None)
+    result.referenced.append(task_id)

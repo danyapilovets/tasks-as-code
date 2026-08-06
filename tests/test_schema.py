@@ -72,3 +72,17 @@ def test_extra_fields_survive_round_trip() -> None:
 
 def test_epic_prefix_comes_from_the_id() -> None:
     assert Task(id="infra-042", summary="s").epic_prefix == "infra"
+
+
+def test_an_issue_key_is_trimmed() -> None:
+    assert Task(id="api-001", summary="s", jira=" AI-42 ").jira == "AI-42"
+
+
+def test_a_blank_issue_key_is_no_key() -> None:
+    assert Task(id="api-001", summary="s", jira="  ").jira is None
+
+
+def test_something_that_is_not_an_issue_key_is_refused() -> None:
+    """A task id in this field would make the tracker link nothing, silently."""
+    with pytest.raises(ValidationError):
+        Task(id="api-001", summary="s", jira="api-001")
